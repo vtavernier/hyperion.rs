@@ -61,7 +61,7 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: release-archive-${{ matrix.target }}
+          name: hyperion.rs-${{ matrix.target }}.tar.xz
           path: release/hyperion.rs-${{ matrix.target }}.tar.xz
 
   release-nightly:
