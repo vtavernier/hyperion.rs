@@ -79,6 +79,6 @@ jobs:
           prerelease: true
           title: "Development Build"
           files: |
-            release/*.tar.*
+            release/*
 
 # vim: ts=2:sw=2
