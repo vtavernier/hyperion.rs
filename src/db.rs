@@ -1,14 +1,13 @@
-use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
+use sqlx::prelude::*;
+use sqlx::SqliteConnection;
 use thiserror::Error;
 
 pub mod models;
-pub mod schema;
 
 #[derive(Debug, Error)]
 pub enum DbError {
     #[error("error connecting to the settings database: {0}")]
-    Connection(#[from] diesel::ConnectionError),
+    Connection(#[from] sqlx::Error),
     #[error("failed to find default path")]
     InvalidDefaultPath,
 }
@@ -18,9 +17,12 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn try_default() -> Result<Self, DbError> {
-        Ok(Self::connect(
-            std::env::var("DATABASE_URL")
+    pub async fn try_default(path: Option<&str>) -> Result<Self, DbError> {
+        let default_path;
+        let path = if let Some(path) = path {
+            path
+        } else {
+            default_path = std::env::var("DATABASE_URL")
                 .map(|v| v.to_string())
                 .or_else(|_| {
                     dirs::home_dir()
@@ -30,16 +32,19 @@ impl Db {
                                 .map(str::to_owned)
                         })
                         .ok_or_else(|| DbError::InvalidDefaultPath)
-                })?
-                .as_str(),
-        )?)
+                })?;
+
+            &default_path
+        };
+
+        Ok(Self::connect(path).await?)
     }
 
-    pub fn connect(path: &str) -> Result<Self, DbError> {
+    pub async fn connect(path: &str) -> Result<Self, DbError> {
         debug!("loading database from `{}`", path);
 
         Ok(Self {
-            connection: SqliteConnection::establish(path)?,
+            connection: SqliteConnection::connect(path).await?,
         })
     }
 }

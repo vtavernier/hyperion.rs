@@ -1286,7 +1286,7 @@ impl InstanceConfigCreator {
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("error querying the database: {0}")]
-    Diesel(#[from] diesel::result::Error),
+    Sqlx(#[from] sqlx::Error),
     #[error("error loading instance: {0}")]
     Instance(#[from] InstanceError),
     #[error("error loading setting: {0}")]
@@ -1309,18 +1309,13 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(db: &crate::db::Db) -> Result<Self, ConfigError> {
-        use crate::db::schema::auth::dsl::auth as db_auths;
-        use crate::db::schema::instances::dsl::instances as db_instances;
-        use crate::db::schema::meta::dsl::meta as db_meta;
-        use crate::db::schema::settings::dsl::settings as db_settings;
-        use diesel::prelude::*;
-
+    pub async fn load(db: &mut crate::db::Db) -> Result<Self, ConfigError> {
         let mut instances = BTreeMap::new();
         let mut global = GlobalConfigCreator::default();
 
-        for instance in db_instances
-            .load::<db_models::DbInstance>(&**db)?
+        for instance in sqlx::query_as::<_, db_models::DbInstance>("SELECT * FROM instances")
+            .fetch_all(&mut **db)
+            .await?
             .into_iter()
             .map(Instance::try_from)
         {
@@ -1328,8 +1323,9 @@ impl Config {
             instances.insert(instance.id, InstanceConfigCreator::new(instance));
         }
 
-        for setting in db_settings
-            .load::<db_models::DbSetting>(&**db)?
+        for setting in sqlx::query_as::<_, db_models::DbSetting>("SELECT * FROM settings")
+            .fetch_all(&mut **db)
+            .await?
             .into_iter()
             .map(Setting::try_from)
         {
@@ -1479,15 +1475,17 @@ impl Config {
             }
         }
 
-        let meta: Result<Vec<_>, _> = db_meta
-            .load::<db_models::DbMeta>(&**db)?
+        let meta: Result<Vec<_>, _> = sqlx::query_as::<_, db_models::DbMeta>("SELECT * FROM meta")
+            .fetch_all(&mut **db)
+            .await?
             .into_iter()
             .map(Meta::try_from)
             .collect();
         let meta = meta?;
 
-        let users: Result<Vec<_>, _> = db_auths
-            .load::<db_models::DbUser>(&**db)?
+        let users: Result<Vec<_>, _> = sqlx::query_as::<_, db_models::DbUser>("SELECT * FROM auth")
+            .fetch_all(&mut **db)
+            .await?
             .into_iter()
             .map(User::try_from)
             .collect();

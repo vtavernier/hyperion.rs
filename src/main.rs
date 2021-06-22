@@ -9,11 +9,25 @@ use tokio::signal;
 struct Opts {
     #[structopt(short, long, parse(from_occurrences))]
     verbose: u32,
+    #[structopt(short, long = "db-path")]
+    database_path: Option<String>,
     #[structopt(long)]
     dump_config: bool,
 }
 
-async fn run(config: hyperion::models::Config) -> color_eyre::eyre::Result<()> {
+async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
+    // Connect to database
+    let mut db = hyperion::db::Db::try_default(opts.database_path.as_deref()).await?;
+
+    // Load configuration
+    let config = hyperion::models::Config::load(&mut db).await?;
+
+    // Dump configuration if this was asked
+    if opts.dump_config {
+        serde_json::to_writer(&mut std::io::stdout(), &config)?;
+        return Ok(());
+    }
+
     // Create the global state object
     let global = hyperion::global::GlobalData::new().wrap();
 
@@ -158,18 +172,6 @@ fn main(opts: Opts) -> color_eyre::eyre::Result<()> {
     .try_init()
     .ok();
 
-    // Connect to database
-    let db = hyperion::db::Db::try_default()?;
-
-    // Load configuration
-    let config = hyperion::models::Config::load(&db)?;
-
-    // Dump configuration if this was asked
-    if opts.dump_config {
-        serde_json::to_writer(&mut std::io::stdout(), &config)?;
-        return Ok(());
-    }
-
     // Create tokio runtime
     let thd_count = num_cpus::get().min(4);
     if thd_count > 1 {
@@ -177,9 +179,9 @@ fn main(opts: Opts) -> color_eyre::eyre::Result<()> {
             .worker_threads(thd_count)
             .enable_all()
             .build()?;
-        rt.block_on(run(config))
+        rt.block_on(run(opts))
     } else {
         let rt = Builder::new_current_thread().enable_all().build()?;
-        rt.block_on(run(config))
+        rt.block_on(run(opts))
     }
 }

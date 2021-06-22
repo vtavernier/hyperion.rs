@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Queryable)]
+use sqlx::FromRow;
+
+#[derive(Debug, Clone, PartialEq, FromRow)]
 pub struct DbUser {
     pub user: String,
     pub password: Vec<u8>,
@@ -10,7 +12,7 @@ pub struct DbUser {
     pub last_use: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Queryable)]
+#[derive(Debug, Clone, PartialEq, FromRow)]
 pub struct DbInstance {
     pub instance: i32,
     pub friendly_name: String,
@@ -18,14 +20,15 @@ pub struct DbInstance {
     pub last_use: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Queryable)]
+#[derive(Debug, Clone, PartialEq, FromRow)]
 pub struct DbMeta {
     pub uuid: String,
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Queryable)]
+#[derive(Debug, Clone, PartialEq, FromRow)]
 pub struct DbSetting {
+    #[sqlx(rename = "type")]
     pub ty: String,
     pub config: String,
     pub hyperion_inst: Option<i32>,

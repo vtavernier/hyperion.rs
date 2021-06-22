@@ -1,3 +1,6 @@
+-- Script for creating a new empty settings database
+-- Adds PRIMARY and FOREIGN key constraints compared to the original
+
 CREATE TABLE instances (
 	instance INTEGER NOT NULL PRIMARY KEY,
 	friendly_name TEXT NOT NULL,

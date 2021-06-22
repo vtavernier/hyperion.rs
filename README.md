@@ -31,36 +31,16 @@ Currently implemented features:
 
 ## Migrating your settings
 
-Due to the ORM being used in this project, we need the settings database to have
-primary keys setup. This doesn't change the schema, but to ensure compatibility,
-it is best to use a separate database for hyperion.ng and hyperion.rs.
-
-This process will be more streamlined in the future, but for testing purposes
-you can follow these instructions: assuming you have the sqlite3 client
-installed, and you are in your home directory, with hyperion.rs being a clone of
-this repository:
+This rewrite uses the same database format for storing settings. In order to
+load your existing hyperion.ng settings, assuming you are in your home
+directory:
 
 ```bash
 # Create config directory for hyperion.rs
 $ mkdir -p .config/hyperion.rs/
 
-# (if not done already) Install the ORM client diesel
-$ cargo install --force diesel_cli
-
-# Setup the database
-$ (cd hyperion.rs && DATABASE_URL=$HOME/.config/hyperion.rs/hyperion.db diesel setup)
-
-# Open sqlite3
-$ sqlite3
-> ATTACH ".hyperion/db/hyperion.db" AS db1;        -- Attach the original hyperion.ng database
-> ATTACH ".config/hyperion.rs/hyperion.db" AS db2; -- Attach the new hyperion.rs database
-> -- Copy the tables
-> BEGIN TRANSACTION;
-> 	INSERT INTO db2.instances SELECT * FROM db1.instances;
-> 	INSERT INTO db2.auth SELECT * FROM db1.auth;
-> 	INSERT INTO db2.meta SELECT * FROM db1.meta;
-> 	INSERT INTO db2.settings SELECT * FROM db1.settings;
-> COMMIT;
+# Copy the existing hyperion.ng database to the new location for hyperion.rs
+$ cp .hyperion/db/hyperion.db .config/hyperion.rs/
 ```
 
 ## Running hyperion.rs
