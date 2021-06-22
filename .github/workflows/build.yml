@@ -22,6 +22,16 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v2
 
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo
+            target
+          key: ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
+            ${{ runner.os }}-build-
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
