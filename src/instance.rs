@@ -3,6 +3,7 @@ use tokio::select;
 use tokio::sync::broadcast;
 
 use crate::{
+    color::{ChannelAdjustments, ChannelAdjustmentsBuilder},
     global::{Global, Message, MuxedMessage, MuxedMessageData},
     image::RawImage,
     models::{self, DeviceConfig, InstanceConfig},
@@ -33,6 +34,7 @@ pub struct Instance {
     receiver: broadcast::Receiver<MuxedMessage>,
     color_data: Vec<models::Color16>,
     black_border_detector: BlackBorderDetector,
+    channel_adjustments: ChannelAdjustments,
     smoothing: Smoothing,
 }
 
@@ -41,6 +43,10 @@ impl Instance {
         let device = Device::new(&config.instance.friendly_name, config.device.clone()).await?;
         let led_count = config.device.hardware_led_count();
         let black_border_detector = BlackBorderDetector::new(config.black_border_detector.clone());
+        let channel_adjustments = ChannelAdjustmentsBuilder::new()
+            .adjustments(config.color.channel_adjustment.iter())
+            .led_count(led_count as _)
+            .build();
         let smoothing = Smoothing::new(config.smoothing.clone(), led_count);
 
         Ok(Self {
@@ -49,6 +55,7 @@ impl Instance {
             receiver: global.subscribe_muxed().await,
             color_data: vec![models::Color16::default(); led_count],
             black_border_detector,
+            channel_adjustments,
             smoothing,
         })
     }
@@ -128,6 +135,9 @@ impl Instance {
                 self.handle_image(&*image);
             }
         }
+
+        // In-place transform colors
+        self.channel_adjustments.apply(&mut self.color_data);
 
         // Update the smoothing state with the new color data
         self.smoothing.set_target(&self.color_data);

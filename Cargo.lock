@@ -715,6 +715,7 @@ dependencies = [
  "git-version",
  "hostname",
  "image",
+ "lazy_static",
  "log",
  "num_cpus",
  "palette",
@@ -722,9 +723,11 @@ dependencies = [
  "paw",
  "prost",
  "prost-build",
+ "regex",
  "serde",
  "serde_derive",
  "serde_json",
+ "slotmap",
  "spidev",
  "sqlx",
  "structopt",
@@ -1677,6 +1680,15 @@ name = "slab"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f173ac3d1a7e3b28003f40de0b5ce7fe2710f9b9dc3fc38664cebee46b3b6527"
+
+[[package]]
+name = "slotmap"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "585cd5dffe4e9e06f6dfdf66708b70aca3f781bed561f4f667b2d9c0d4559e36"
+dependencies = [
+ "version_check",
+]
 
 [[package]]
 name = "smallvec"

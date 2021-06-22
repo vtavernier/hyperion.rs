@@ -28,6 +28,7 @@ Currently implemented features:
 * Loading settings from the hyperion.ng database
 * Basic WS2812SPI device (no invert, no latch time)
 * JSON, Protobuf and Flatbuffers server
+* Black border detector, color channel adjustments, smoothing
 
 ## Migrating your settings
 
