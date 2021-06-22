@@ -174,14 +174,9 @@ fn main(opts: Opts) -> color_eyre::eyre::Result<()> {
 
     // Create tokio runtime
     let thd_count = num_cpus::get().min(4);
-    if thd_count > 1 {
-        let rt = Builder::new_multi_thread()
-            .worker_threads(thd_count)
-            .enable_all()
-            .build()?;
-        rt.block_on(run(opts))
-    } else {
-        let rt = Builder::new_current_thread().enable_all().build()?;
-        rt.block_on(run(opts))
-    }
+    let rt = Builder::new_multi_thread()
+        .worker_threads(thd_count)
+        .enable_all()
+        .build()?;
+    rt.block_on(run(opts))
 }
