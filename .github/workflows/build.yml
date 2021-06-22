@@ -30,7 +30,7 @@ jobs:
           key: ${{ runner.os }}-build-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
-            ${{ runner.os }}-build-
+            ${{ runner.os }}-build-${{ matrix.target }}-
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
