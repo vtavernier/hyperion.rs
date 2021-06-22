@@ -61,6 +61,19 @@ jobs:
           cd release
           tar cJvf hyperion.rs-${{ matrix.target }}.tar.xz hyperion.rs
 
+      - uses: actions/upload-artifact@v2
+        with:
+          name: release-archive-${{ matrix.target }}
+          path: release/hyperion.rs-${{ matrix.target }}.tar.xz
+
+  release-nightly:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          path: release
+
       - uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
