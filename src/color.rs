@@ -13,10 +13,6 @@ struct RgbChannelAdjustment {
 }
 
 impl RgbChannelAdjustment {
-    pub fn new(adjust: Color) -> Self {
-        Self::from(adjust)
-    }
-
     pub fn apply(&self, input: u8, brightness: u8) -> Color {
         Color::new(
             ((brightness as u32 * input as u32 * self.adjust.red as u32) / 65025) as _,
