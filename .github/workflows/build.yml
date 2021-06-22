@@ -27,9 +27,9 @@ jobs:
           path: |
             ~/.cargo
             target
-          key: ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
+          key: ${{ runner.os }}-build-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
+            ${{ runner.os }}-build-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'rust-toolchain') }}
             ${{ runner.os }}-build-
 
       - name: Install Rust toolchain
