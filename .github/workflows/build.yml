@@ -49,6 +49,25 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --target=${{ matrix.target }}
+          args: --release --target=${{ matrix.target }}
+
+      - name: Strip resulting binary
+        run: docker run -v ${{ github.workspace }}:/src vtavernier/cross-hyperion:${{ matrix.target }} ${{ matrix.cross }}strip /src/target/${{ matrix.target }}/release/hyperiond
+
+      - name: Prepare release
+        run: |
+          mkdir -p release/hyperion.rs/bin
+          cp target/${{ matrix.target }}/release/hyperiond release/hyperion.rs/bin/hyperiond-rs
+          cd release
+          tar cJvf hyperion.rs-${{ matrix.target }}.tar.xz hyperion.rs
+
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: latest
+          prerelease: true
+          title: "Development Build"
+          files: |
+            release/*.tar.*
 
 # vim: ts=2:sw=2
