@@ -44,6 +44,7 @@ pub enum JsonServerError {
 async fn handle_request(
     request: HyperionMessage,
     source: &InputSourceHandle<InputMessage>,
+    global: &Global,
 ) -> Result<Option<HyperionResponse>, JsonServerError> {
     request.validate()?;
 
@@ -117,6 +118,32 @@ async fn handle_request(
                 request.tan,
                 vec![],
                 priorities,
+                global
+                    .read_config(|config| {
+                        config
+                            .instances
+                            .iter()
+                            .map(|instance_config| (&instance_config.1.instance).into())
+                            .collect()
+                    })
+                    .await,
+            )));
+        }
+
+        HyperionCommand::Authorize(message::Authorize { subcommand, .. }) => match subcommand {
+            message::AuthorizeCommand::TokenRequired => {
+                // TODO: Perform actual authentication flow
+                return Ok(Some(HyperionResponse::token_required(request.tan, false)));
+            }
+            _ => {
+                return Err(JsonServerError::NotImplemented);
+            }
+        },
+
+        HyperionCommand::SysInfo => {
+            return Ok(Some(HyperionResponse::sys_info(
+                request.tan,
+                global.read_config(|config| config.uuid()).await,
             )));
         }
 
@@ -149,7 +176,7 @@ pub async fn handle_client(
             match request {
                 Ok(rq) => {
                     tan = rq.tan;
-                    handle_request(rq, &source).await
+                    handle_request(rq, &source, &global).await
                 }
                 Err(error) => Err(JsonServerError::from(error)),
             }

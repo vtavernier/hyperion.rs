@@ -1511,4 +1511,9 @@ impl Config {
             users,
         })
     }
+
+    pub fn uuid(&self) -> uuid::Uuid {
+        // There should always be a meta uuid
+        self.meta.first().map(|meta| meta.uuid).unwrap_or_default()
+    }
 }

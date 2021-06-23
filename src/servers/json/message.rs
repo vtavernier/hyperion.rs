@@ -423,6 +423,8 @@ pub struct ServerInfo {
     /// Active static LED color (array)
     #[serde(rename = "activeLedColor")]
     active_led_color: serde_json::Value,
+    #[serde(rename = "instance")]
+    instances: Vec<InstanceInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -460,51 +462,89 @@ impl From<crate::global::InputMessage> for PriorityInfo {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct InstanceInfo {
+    friendly_name: String,
+    instance: i32,
+    running: bool,
+}
+
+impl From<&crate::models::Instance> for InstanceInfo {
+    fn from(config: &crate::models::Instance) -> Self {
+        Self {
+            friendly_name: config.friendly_name.clone(),
+            instance: config.id,
+            // TODO: Runtime state might differ from config enabled
+            running: config.enabled,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct HyperionResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tan: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", flatten)]
+    info: Option<HyperionResponseInfo>,
+}
+
 /// Hyperion JSON response
 #[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum HyperionResponse {
-    /// Success response
-    SuccessResponse {
-        /// Success value (should be true)
-        success: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        tan: Option<i32>,
-    },
-    /// Error response
-    ErrorResponse {
-        /// Success value (should be false)
-        success: bool,
-        /// Error message
-        error: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        tan: Option<i32>,
-    },
+#[serde(tag = "command", content = "info")]
+pub enum HyperionResponseInfo {
     /// Server information response
-    ServerInfoResponse {
-        /// Success value (should be true)
-        success: bool,
-        /// Server information
-        // Box because of large size difference
-        info: Box<ServerInfo>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        tan: Option<i32>,
+    // Box because of large size difference
+    #[serde(rename = "serverinfo")]
+    ServerInfo(Box<ServerInfo>),
+    /// TokenRequired response
+    #[serde(rename = "auth-tokenRequired")]
+    TokenRequired {
+        /// true if an auth token required
+        required: bool,
+    },
+    /// SysInfo response
+    #[serde(rename = "sysinfo")]
+    SysInfo {
+        system: serde_json::Value,
+        hyperion: serde_json::Value,
     },
 }
 
 impl HyperionResponse {
+    fn success_info(tan: Option<i32>, info: HyperionResponseInfo) -> Self {
+        Self {
+            success: true,
+            tan,
+            error: None,
+            info: Some(info),
+        }
+    }
+
     /// Return a success response
     pub fn success(tan: Option<i32>) -> Self {
-        HyperionResponse::SuccessResponse { success: true, tan }
+        Self {
+            success: true,
+            tan,
+            error: None,
+            info: None,
+        }
     }
 
     /// Return an error response
     pub fn error(tan: Option<i32>, error: &impl std::fmt::Display) -> Self {
-        HyperionResponse::ErrorResponse {
+        Self {
             success: false,
-            error: error.to_string(),
             tan,
+            error: Some(error.to_string()),
+            info: None,
         }
+    }
+
+    fn version() -> String {
+        git_version::git_version!(prefix = "hyperion.rs-", args = ["--always", "--tags"]).to_owned()
     }
 
     /// Return a server information response
@@ -512,20 +552,17 @@ impl HyperionResponse {
         tan: Option<i32>,
         effects: Vec<EffectDefinition>,
         priorities: Vec<PriorityInfo>,
+        instances: Vec<InstanceInfo>,
     ) -> Self {
-        HyperionResponse::ServerInfoResponse {
-            success: true,
-            info: Box::new(ServerInfo {
+        Self::success_info(
+            tan,
+            HyperionResponseInfo::ServerInfo(Box::new(ServerInfo {
                 hostname: hostname::get()
                     .map(|s| s.to_string_lossy().to_string())
                     .unwrap_or_else(|_| "<unknown hostname>".to_owned()),
                 effects,
                 hyperion_build: BuildInfo {
-                    version: git_version::git_version!(
-                        prefix = "hyperion.rs-",
-                        args = ["--always", "--tags"]
-                    )
-                    .to_owned(),
+                    version: Self::version(),
                     time: "".to_owned(),
                 },
 
@@ -535,8 +572,31 @@ impl HyperionResponse {
                 adjustment: json!([]),
                 active_effects: json!([]),
                 active_led_color: json!([]),
-            }),
+                instances,
+            })),
+        )
+    }
+
+    pub fn token_required(tan: Option<i32>, required: bool) -> Self {
+        Self::success_info(tan, HyperionResponseInfo::TokenRequired { required })
+    }
+
+    pub fn sys_info(tan: Option<i32>, id: uuid::Uuid) -> Self {
+        // TODO: Properly fill out this response
+        Self::success_info(
             tan,
-        }
+            HyperionResponseInfo::SysInfo {
+                system: json!({}),
+                hyperion: json!({
+                    // We emulate hyperion.ng 2.0.0
+                    "version": "2.0.0",
+                    "build": Self::version(),
+                    "gitremote": "",
+                    "time": "",
+                    "id": id,
+                    "readOnlyMode": false,
+                }),
+            },
+        )
     }
 }
