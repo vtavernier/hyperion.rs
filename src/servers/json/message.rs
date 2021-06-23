@@ -37,7 +37,7 @@ pub struct ChannelAdjustment {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub enum AuthorizeCommand {
     RequestToken,
     CreateToken,
