@@ -29,7 +29,7 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     }
 
     // Create the global state object
-    let global = hyperion::global::GlobalData::new().wrap();
+    let global = hyperion::global::GlobalData::new(&config).wrap();
 
     // Initialize and spawn the devices
     let mut initialized_devices = 0;

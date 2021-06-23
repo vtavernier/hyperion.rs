@@ -13,6 +13,8 @@ pub use input_source::*;
 mod muxed_message;
 pub use muxed_message::*;
 
+use crate::models::Config;
+
 pub trait Message: Sized {
     type Data;
 
@@ -66,6 +68,11 @@ impl Global {
     pub async fn subscribe_muxed(&self) -> broadcast::Receiver<MuxedMessage> {
         self.0.read().await.muxed_tx.subscribe()
     }
+
+    pub async fn read_config<T>(&self, f: impl FnOnce(&Config) -> T) -> T {
+        let data = self.0.read().await;
+        f(&data.config)
+    }
 }
 
 pub struct GlobalData {
@@ -75,10 +82,11 @@ pub struct GlobalData {
     next_input_source_id: usize,
     muxed_sources: HashMap<usize, Arc<InputSource<MuxedMessage>>>,
     next_muxed_source_id: usize,
+    config: Config,
 }
 
 impl GlobalData {
-    pub fn new() -> Self {
+    pub fn new(config: &Config) -> Self {
         let (input_tx, _) = broadcast::channel(4);
         let (muxed_tx, _) = broadcast::channel(4);
 
@@ -89,6 +97,7 @@ impl GlobalData {
             next_input_source_id: 1,
             muxed_sources: Default::default(),
             next_muxed_source_id: 1,
+            config: config.clone(),
         }
     }
 
