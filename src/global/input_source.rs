@@ -9,13 +9,27 @@ use super::{Global, InputSourceName, Message};
 #[derive(Display)]
 #[display("`{name}` (id = {id}, priority = {priority:?})")]
 pub struct InputSource<T: Message> {
-    pub(super) id: usize,
-    pub(super) name: InputSourceName,
-    pub(super) priority: Option<i32>,
-    pub(super) tx: broadcast::Sender<T>,
+    id: usize,
+    name: InputSourceName,
+    priority: Option<i32>,
+    tx: broadcast::Sender<T>,
 }
 
 impl<T: Message> InputSource<T> {
+    pub fn new(
+        id: usize,
+        name: InputSourceName,
+        priority: Option<i32>,
+        tx: broadcast::Sender<T>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            priority,
+            tx,
+        }
+    }
+
     pub fn id(&self) -> usize {
         self.id
     }
@@ -30,8 +44,17 @@ impl<T: Message> InputSource<T> {
 }
 
 pub struct InputSourceHandle<T: Message> {
-    pub(super) input_source: Arc<InputSource<T>>,
-    pub(super) global: Global,
+    input_source: Arc<InputSource<T>>,
+    global: Global,
+}
+
+impl<T: Message> InputSourceHandle<T> {
+    pub fn new(input_source: Arc<InputSource<T>>, global: Global) -> Self {
+        Self {
+            input_source,
+            global,
+        }
+    }
 }
 
 impl<T: Message> std::ops::Deref for InputSourceHandle<T> {

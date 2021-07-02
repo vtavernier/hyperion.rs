@@ -62,20 +62,20 @@ impl Global {
             None
         };
 
-        Ok(InputSourceHandle {
-            input_source: self.0.write().await.register_input_source(name, priority),
-            global: self.clone(),
-        })
+        Ok(InputSourceHandle::new(
+            self.0.write().await.register_input_source(name, priority),
+            self.clone(),
+        ))
     }
 
     pub async fn register_muxed_source(
         &self,
         name: InputSourceName,
     ) -> Result<InputSourceHandle<MuxedMessage>, InputSourceError> {
-        Ok(InputSourceHandle {
-            input_source: self.0.write().await.register_muxed_source(name),
-            global: self.clone(),
-        })
+        Ok(InputSourceHandle::new(
+            self.0.write().await.register_muxed_source(name),
+            self.clone(),
+        ))
     }
 
     pub async fn subscribe_input(&self) -> broadcast::Receiver<InputMessage> {
@@ -130,12 +130,7 @@ impl GlobalData {
         let id = self.next_input_source_id;
         self.next_input_source_id += 1;
 
-        let input_source = Arc::new(InputSource {
-            id,
-            name,
-            priority,
-            tx: self.input_tx.clone(),
-        });
+        let input_source = Arc::new(InputSource::new(id, name, priority, self.input_tx.clone()));
 
         info!("registered new input source {}", *input_source);
 
@@ -145,7 +140,7 @@ impl GlobalData {
     }
 
     fn unregister_input_source(&mut self, source: &InputSource<InputMessage>) {
-        if let Some(is) = self.input_sources.remove(&source.id) {
+        if let Some(is) = self.input_sources.remove(&source.id()) {
             info!("unregistered input source {}", *is);
         }
     }
@@ -154,12 +149,7 @@ impl GlobalData {
         let id = self.next_muxed_source_id;
         self.next_muxed_source_id += 1;
 
-        let input_source = Arc::new(InputSource {
-            id,
-            name,
-            priority: None,
-            tx: self.muxed_tx.clone(),
-        });
+        let input_source = Arc::new(InputSource::new(id, name, None, self.muxed_tx.clone()));
 
         info!("registered new muxed source {}", *input_source);
 
@@ -169,7 +159,7 @@ impl GlobalData {
     }
 
     fn unregister_muxed_source(&mut self, source: &InputSource<MuxedMessage>) {
-        if let Some(is) = self.muxed_sources.remove(&source.id) {
+        if let Some(is) = self.muxed_sources.remove(&source.id()) {
             info!("unregistered muxed source {}", *is);
         }
     }
