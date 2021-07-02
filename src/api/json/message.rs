@@ -322,6 +322,7 @@ pub enum HyperionCommand {
     Adjustment(Adjustment),
     Authorize(Authorize),
     Clear(Clear),
+    /// Deprecated
     ClearAll,
     Color(Color),
     ComponentState(ComponentState),

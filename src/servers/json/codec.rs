@@ -2,7 +2,7 @@ use bytes::BytesMut;
 use thiserror::Error;
 use tokio_util::codec::{Decoder, Encoder, LinesCodec};
 
-use super::message;
+use crate::api::json::message;
 
 /// Parse an incoming request as JSON into the corresponding message type
 ///

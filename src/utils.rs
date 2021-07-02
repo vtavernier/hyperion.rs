@@ -9,3 +9,15 @@ pub fn color_to16(color: Color) -> Color16 {
     let (r, g, b) = color.into_components();
     Color16::from_components(((r as u16) << 8, (g as u16) << 8, (b as u16) << 8))
 }
+
+pub fn i32_to_duration(d: Option<i32>) -> Option<chrono::Duration> {
+    if let Some(d) = d {
+        if d <= 0 {
+            None
+        } else {
+            Some(chrono::Duration::milliseconds(d as _))
+        }
+    } else {
+        None
+    }
+}

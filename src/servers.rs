@@ -8,8 +8,6 @@ pub mod flat;
 pub mod json;
 pub mod proto;
 
-mod util;
-
 pub async fn bind<T, E, F>(
     options: T,
     global: Global,

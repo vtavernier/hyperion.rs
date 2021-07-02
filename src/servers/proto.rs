@@ -1,8 +1,6 @@
 //! protobuf protocol server implementation
 
-use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use futures::prelude::*;
 use prost::Message;
@@ -10,30 +8,18 @@ use thiserror::Error;
 use tokio::net::TcpStream;
 
 use crate::{
-    global::{Global, InputMessage, InputMessageData, InputSourceHandle},
-    image::{RawImage, RawImageError},
-    models::Color,
+    api::proto::{self, message, ProtoApiError},
+    global::{Global, InputMessage, InputSourceHandle},
 };
-
-/// Schema definitions as Serde serializable structures and enums
-mod message;
-
-use super::util::*;
 
 #[derive(Debug, Error)]
 pub enum ProtoServerError {
     #[error("i/o error: {0}")]
     Io(#[from] futures_io::Error),
-    #[error("error decoding image: {0}")]
-    ImageError(#[from] ImageError),
-    #[error("error decoding image: {0}")]
-    RawImageError(#[from] RawImageError),
-    #[error("error broadcasting update: {0}")]
-    Broadcast(#[from] tokio::sync::broadcast::error::SendError<InputMessage>),
     #[error("decode error: {}", 0)]
     DecodeError(#[from] prost::DecodeError),
-    #[error("missing command data in protobuf frame")]
-    MissingCommand,
+    #[error(transparent)]
+    Api(#[from] ProtoApiError),
 }
 
 fn encode_response(buf: &mut bytes::BytesMut, msg: impl prost::Message) -> bytes::Bytes {
@@ -84,64 +70,7 @@ fn handle_request(
 
     trace!("({}) got request: {:?}", peer_addr, request);
 
-    match request.command() {
-        message::hyperion_request::Command::Clearall => {
-            // Update state
-            source.send(InputMessageData::ClearAll)?;
-        }
-
-        message::hyperion_request::Command::Clear => {
-            let clear_request = request
-                .clear_request
-                .ok_or_else(|| ProtoServerError::MissingCommand)?;
-
-            // Update state
-            source.send(InputMessageData::Clear {
-                priority: clear_request.priority,
-            })?;
-        }
-
-        message::hyperion_request::Command::Color => {
-            let color_request = request
-                .color_request
-                .ok_or_else(|| ProtoServerError::MissingCommand)?;
-
-            let color = color_request.rgb_color;
-            let color = (
-                (color & 0x000_000FF) as u8,
-                ((color & 0x0000_FF00) >> 8) as u8,
-                ((color & 0x00FF_0000) >> 16) as u8,
-            );
-
-            // Update state
-            source.send(InputMessageData::SolidColor {
-                priority: color_request.priority,
-                duration: i32_to_duration(color_request.duration),
-                color: Color::from_components(color),
-            })?;
-        }
-
-        message::hyperion_request::Command::Image => {
-            let image_request = request
-                .image_request
-                .ok_or_else(|| ProtoServerError::MissingCommand)?;
-
-            let width =
-                u32::try_from(image_request.imagewidth).map_err(|_| ImageError::InvalidWidth)?;
-            let height =
-                u32::try_from(image_request.imageheight).map_err(|_| ImageError::InvalidHeight)?;
-            let raw_image = RawImage::try_from((image_request.imagedata.to_vec(), width, height))?;
-
-            // Update state
-            source.send(InputMessageData::Image {
-                priority: image_request.priority,
-                duration: i32_to_duration(image_request.duration),
-                image: Arc::new(raw_image),
-            })?;
-        }
-    }
-
-    Ok(())
+    Ok(proto::handle_request(request, source)?)
 }
 
 pub async fn handle_client(

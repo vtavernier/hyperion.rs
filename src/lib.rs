@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+pub mod api;
 pub mod color;
 pub mod db;
 pub mod global;

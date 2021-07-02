@@ -14,6 +14,12 @@ pub enum RawImageError {
         channels: u32,
         expected: usize,
     },
+    #[error("invalid width")]
+    InvalidWidth,
+    #[error("invalid height")]
+    InvalidHeight,
+    #[error("raw image data missing")]
+    RawImageMissing,
     #[error("image width is zero")]
     ZeroWidth,
     #[error("image height is zero")]
