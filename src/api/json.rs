@@ -27,114 +27,125 @@ pub enum JsonApiError {
     Recv(#[from] tokio::sync::oneshot::error::RecvError),
 }
 
-pub async fn handle_request(
-    request: HyperionMessage,
-    source: &InputSourceHandle<InputMessage>,
-    global: &Global,
-) -> Result<Option<HyperionResponse>, JsonApiError> {
-    request.validate()?;
+/// A client connected to the JSON endpoint
+pub struct ClientConnection {
+    source: InputSourceHandle<InputMessage>,
+}
 
-    match request.command {
-        HyperionCommand::ClearAll => {
-            // Update state
-            source.send(InputMessageData::ClearAll)?;
-        }
+impl ClientConnection {
+    pub fn new(source: InputSourceHandle<InputMessage>) -> Self {
+        Self { source }
+    }
 
-        HyperionCommand::Clear(message::Clear { priority }) => {
-            // Update state
-            source.send(InputMessageData::Clear { priority })?;
-        }
+    pub async fn handle_request(
+        &self,
+        request: HyperionMessage,
+        global: &Global,
+    ) -> Result<Option<HyperionResponse>, JsonApiError> {
+        request.validate()?;
 
-        HyperionCommand::Color(message::Color {
-            priority,
-            duration,
-            color,
-            origin: _,
-        }) => {
-            // TODO: Handle origin field
+        match request.command {
+            HyperionCommand::ClearAll => {
+                // Update state
+                self.source.send(InputMessageData::ClearAll)?;
+            }
 
-            // Update state
-            source.send(InputMessageData::SolidColor {
+            HyperionCommand::Clear(message::Clear { priority }) => {
+                // Update state
+                self.source.send(InputMessageData::Clear { priority })?;
+            }
+
+            HyperionCommand::Color(message::Color {
                 priority,
-                duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
+                duration,
                 color,
-            })?;
-        }
+                origin: _,
+            }) => {
+                // TODO: Handle origin field
 
-        HyperionCommand::Image(message::Image {
-            priority,
-            duration,
-            imagewidth,
-            imageheight,
-            imagedata,
-            origin: _,
-            format: _,
-            scale: _,
-            name: _,
-        }) => {
-            // TODO: Handle origin, format, scale, name fields
+                // Update state
+                self.source.send(InputMessageData::SolidColor {
+                    priority,
+                    duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
+                    color,
+                })?;
+            }
 
-            let raw_image = RawImage::try_from((imagedata, imagewidth, imageheight))?;
-
-            source.send(InputMessageData::Image {
+            HyperionCommand::Image(message::Image {
                 priority,
-                duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
-                image: Arc::new(raw_image),
-            })?;
-        }
+                duration,
+                imagewidth,
+                imageheight,
+                imagedata,
+                origin: _,
+                format: _,
+                scale: _,
+                name: _,
+            }) => {
+                // TODO: Handle origin, format, scale, name fields
 
-        HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
-            // TODO: Handle subscribe field
+                let raw_image = RawImage::try_from((imagedata, imagewidth, imageheight))?;
 
-            // Request priority information
-            let (sender, receiver) = tokio::sync::oneshot::channel();
-            source.send(InputMessageData::PrioritiesRequest {
-                response: Arc::new(std::sync::Mutex::new(Some(sender))),
-            })?;
-
-            // Receive priority information
-            let priorities = receiver
-                .await?
-                .into_iter()
-                .map(message::PriorityInfo::from)
-                .collect();
-
-            // Just answer the serverinfo request, no need to update state
-            return Ok(Some(HyperionResponse::server_info(
-                request.tan,
-                vec![],
-                priorities,
-                global
-                    .read_config(|config| {
-                        config
-                            .instances
-                            .iter()
-                            .map(|instance_config| (&instance_config.1.instance).into())
-                            .collect()
-                    })
-                    .await,
-            )));
-        }
-
-        HyperionCommand::Authorize(message::Authorize { subcommand, .. }) => match subcommand {
-            message::AuthorizeCommand::TokenRequired => {
-                // TODO: Perform actual authentication flow
-                return Ok(Some(HyperionResponse::token_required(request.tan, false)));
+                self.source.send(InputMessageData::Image {
+                    priority,
+                    duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
+                    image: Arc::new(raw_image),
+                })?;
             }
-            _ => {
-                return Err(JsonApiError::NotImplemented);
+
+            HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
+                // TODO: Handle subscribe field
+
+                // Request priority information
+                let (sender, receiver) = tokio::sync::oneshot::channel();
+                self.source.send(InputMessageData::PrioritiesRequest {
+                    response: Arc::new(std::sync::Mutex::new(Some(sender))),
+                })?;
+
+                // Receive priority information
+                let priorities = receiver
+                    .await?
+                    .into_iter()
+                    .map(message::PriorityInfo::from)
+                    .collect();
+
+                // Just answer the serverinfo request, no need to update state
+                return Ok(Some(HyperionResponse::server_info(
+                    request.tan,
+                    vec![],
+                    priorities,
+                    global
+                        .read_config(|config| {
+                            config
+                                .instances
+                                .iter()
+                                .map(|instance_config| (&instance_config.1.instance).into())
+                                .collect()
+                        })
+                        .await,
+                )));
             }
-        },
 
-        HyperionCommand::SysInfo => {
-            return Ok(Some(HyperionResponse::sys_info(
-                request.tan,
-                global.read_config(|config| config.uuid()).await,
-            )));
-        }
+            HyperionCommand::Authorize(message::Authorize { subcommand, .. }) => match subcommand {
+                message::AuthorizeCommand::TokenRequired => {
+                    // TODO: Perform actual authentication flow
+                    return Ok(Some(HyperionResponse::token_required(request.tan, false)));
+                }
+                _ => {
+                    return Err(JsonApiError::NotImplemented);
+                }
+            },
 
-        _ => return Err(JsonApiError::NotImplemented),
-    };
+            HyperionCommand::SysInfo => {
+                return Ok(Some(HyperionResponse::sys_info(
+                    request.tan,
+                    global.read_config(|config| config.uuid()).await,
+                )));
+            }
 
-    Ok(None)
+            _ => return Err(JsonApiError::NotImplemented),
+        };
+
+        Ok(None)
+    }
 }

@@ -36,10 +36,12 @@ pub async fn handle_client(
     let (mut writer, mut reader) = framed.split();
 
     // unwrap: cannot fail because the priority is None
-    let source = global
-        .register_input_source(InputSourceName::Json { peer_addr }, None)
-        .await
-        .unwrap();
+    let client_connection = json::ClientConnection::new(
+        global
+            .register_input_source(InputSourceName::Json { peer_addr }, None)
+            .await
+            .unwrap(),
+    );
 
     while let Some(request) = reader.next().await {
         trace!("({}) processing request: {:?}", peer_addr, request);
@@ -49,7 +51,7 @@ pub async fn handle_client(
             match request {
                 Ok(rq) => {
                     tan = rq.tan;
-                    Ok(json::handle_request(rq, &source, &global).await?)
+                    Ok(client_connection.handle_request(rq, &global).await?)
                 }
                 Err(error) => Err(JsonServerError::from(error)),
             }
