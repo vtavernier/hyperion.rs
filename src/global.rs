@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
+use parse_display::Display;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 
@@ -28,10 +30,25 @@ pub trait Message: Sized {
 #[derive(Clone)]
 pub struct Global(Arc<RwLock<GlobalData>>);
 
+#[derive(Display, Debug)]
+pub enum InputSourceName {
+    #[display("FlatBuffers({peer_addr}): {origin}")]
+    FlatBuffers {
+        peer_addr: SocketAddr,
+        origin: String,
+    },
+    #[display("JSON({peer_addr})")]
+    Json { peer_addr: SocketAddr },
+    #[display("Protobuf({peer_addr})")]
+    Protobuf { peer_addr: SocketAddr },
+    #[display("PriorityMuxer")]
+    PriorityMuxer,
+}
+
 impl Global {
     pub async fn register_input_source(
         &self,
-        name: String,
+        name: InputSourceName,
         priority: Option<i32>,
     ) -> Result<InputSourceHandle<InputMessage>, InputSourceError> {
         let priority = if let Some(priority) = priority {
@@ -53,7 +70,7 @@ impl Global {
 
     pub async fn register_muxed_source(
         &self,
-        name: String,
+        name: InputSourceName,
     ) -> Result<InputSourceHandle<MuxedMessage>, InputSourceError> {
         Ok(InputSourceHandle {
             input_source: self.0.write().await.register_muxed_source(name),
@@ -107,7 +124,7 @@ impl GlobalData {
 
     fn register_input_source(
         &mut self,
-        name: String,
+        name: InputSourceName,
         priority: Option<i32>,
     ) -> Arc<InputSource<InputMessage>> {
         let id = self.next_input_source_id;
@@ -133,7 +150,7 @@ impl GlobalData {
         }
     }
 
-    fn register_muxed_source(&mut self, name: String) -> Arc<InputSource<MuxedMessage>> {
+    fn register_muxed_source(&mut self, name: InputSourceName) -> Arc<InputSource<MuxedMessage>> {
         let id = self.next_muxed_source_id;
         self.next_muxed_source_id += 1;
 

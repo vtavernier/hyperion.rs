@@ -9,7 +9,7 @@ use tokio::net::TcpStream;
 
 use crate::{
     api::proto::{self, message, ProtoApiError},
-    global::{Global, InputMessage, InputSourceHandle},
+    global::{Global, InputMessage, InputSourceHandle, InputSourceName},
 };
 
 #[derive(Debug, Error)]
@@ -86,7 +86,7 @@ pub async fn handle_client(
 
     // unwrap: cannot fail because the priority is None
     let source = global
-        .register_input_source(format!("Protobuf({})", peer_addr), None)
+        .register_input_source(InputSourceName::Protobuf { peer_addr }, None)
         .await
         .unwrap();
 

@@ -4,13 +4,13 @@ use parse_display::Display;
 use thiserror::Error;
 use tokio::sync::broadcast;
 
-use crate::global::{Global, Message};
+use super::{Global, InputSourceName, Message};
 
 #[derive(Display)]
 #[display("`{name}` (id = {id}, priority = {priority:?})")]
 pub struct InputSource<T: Message> {
     pub(super) id: usize,
-    pub(super) name: String,
+    pub(super) name: InputSourceName,
     pub(super) priority: Option<i32>,
     pub(super) tx: broadcast::Sender<T>,
 }

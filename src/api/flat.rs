@@ -5,7 +5,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
-    global::{Global, InputMessage, InputMessageData, InputSourceHandle},
+    global::{Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName},
     image::{RawImage, RawImageError},
     models::Color,
     utils::i32_to_duration,
@@ -103,7 +103,10 @@ pub async fn handle_request(
                 *source = Some(
                     global
                         .register_input_source(
-                            format!("FlatBuffers({}): {}", peer_addr, register.origin()),
+                            InputSourceName::FlatBuffers {
+                                peer_addr,
+                                origin: register.origin().to_owned(),
+                            },
                             Some(priority),
                         )
                         .await

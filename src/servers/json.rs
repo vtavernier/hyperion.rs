@@ -9,7 +9,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     api::json::{self, JsonApiError},
-    global::Global,
+    global::{Global, InputSourceName},
 };
 
 /// JSON protocol codec definition
@@ -37,7 +37,7 @@ pub async fn handle_client(
 
     // unwrap: cannot fail because the priority is None
     let source = global
-        .register_input_source(format!("JSON({})", peer_addr), None)
+        .register_input_source(InputSourceName::Json { peer_addr }, None)
         .await
         .unwrap();
 

@@ -6,7 +6,10 @@ use tokio::select;
 use tokio::sync::broadcast::Receiver;
 
 use crate::{
-    global::{Global, InputMessage, InputMessageData, InputSourceHandle, Message, MuxedMessage},
+    global::{
+        Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName, Message,
+        MuxedMessage,
+    },
     models::Color,
 };
 
@@ -28,7 +31,7 @@ impl PriorityMuxer {
         let mut this = Self {
             receiver: global.subscribe_input().await,
             source_handle: global
-                .register_muxed_source("PriorityMuxer".to_owned())
+                .register_muxed_source(InputSourceName::PriorityMuxer)
                 .await
                 .unwrap(),
             inputs: Default::default(),
