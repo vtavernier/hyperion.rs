@@ -4,7 +4,6 @@ use std::{
 };
 
 use serde_derive::{Deserialize, Serialize};
-use sysinfo::SystemExt;
 use validator::Validate;
 
 use crate::{api::types::PriorityInfo, component::ComponentName, models::Color as RgbColor};
@@ -586,8 +585,6 @@ pub struct SystemInfo {
 
 impl SystemInfo {
     pub fn new() -> Self {
-        let system = sysinfo::System::new();
-
         // TODO: Fill in other fields
         Self {
             kernel_type: if cfg!(target_os = "windows") {
@@ -599,12 +596,24 @@ impl SystemInfo {
                     .output()
                     .ok()
                     .and_then(|output| String::from_utf8(output.stdout).ok())
+                    .map(|output| output.trim().to_ascii_lowercase())
                     .unwrap_or_else(String::new)
             } else {
                 String::new()
             },
-            kernel_version: system.get_os_version().unwrap_or_else(String::new),
-            host_name: system.get_host_name().unwrap_or_else(String::new),
+            kernel_version: if cfg!(target_os = "linux") {
+                Command::new("uname")
+                    .args(&["-r"])
+                    .stdout(Stdio::piped())
+                    .output()
+                    .ok()
+                    .and_then(|output| String::from_utf8(output.stdout).ok())
+                    .map(|output| output.trim().to_ascii_lowercase())
+                    .unwrap_or_else(String::new)
+            } else {
+                String::new()
+            },
+            host_name: hostname(),
             ..Default::default()
         }
     }
@@ -719,9 +728,7 @@ impl HyperionResponse {
                 // TODO: Actual video mode
                 video_mode: VideoMode::Mode2D,
                 instances,
-                hostname: hostname::get()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| "<unknown hostname>".to_owned()),
+                hostname: hostname(),
             }),
         )
     }
@@ -734,6 +741,12 @@ impl HyperionResponse {
         // TODO: Properly fill out this response
         Self::success_info(tan, HyperionResponseInfo::SysInfo(SysInfo::new(id)))
     }
+}
+
+fn hostname() -> String {
+    hostname::get()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "<unknown hostname>".to_owned())
 }
 
 fn version() -> String {
