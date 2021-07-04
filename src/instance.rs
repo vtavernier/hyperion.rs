@@ -2,9 +2,10 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::broadcast;
 
+use crate::api::types::PriorityInfo;
 use crate::{
     color::{ChannelAdjustments, ChannelAdjustmentsBuilder},
-    global::{Global, Message, MuxedMessage, MuxedMessageData},
+    global::Global,
     image::RawImage,
     models::{self, DeviceConfig, InstanceConfig},
 };
@@ -14,6 +15,9 @@ use black_border_detector::*;
 
 mod device;
 use device::*;
+
+mod muxer;
+use muxer::*;
 
 mod smoothing;
 use smoothing::*;
@@ -31,7 +35,7 @@ pub enum InstanceError {
 pub struct Instance {
     config: InstanceConfig,
     device: Device,
-    receiver: broadcast::Receiver<MuxedMessage>,
+    muxer: PriorityMuxer,
     color_data: Vec<models::Color16>,
     black_border_detector: BlackBorderDetector,
     channel_adjustments: ChannelAdjustments,
@@ -52,7 +56,7 @@ impl Instance {
         Ok(Self {
             config,
             device,
-            receiver: global.subscribe_muxed().await,
+            muxer: PriorityMuxer::new(global).await,
             color_data: vec![models::Color16::default(); led_count],
             black_border_detector,
             channel_adjustments,
@@ -143,19 +147,38 @@ impl Instance {
         self.smoothing.set_target(&self.color_data);
     }
 
+    pub async fn current_priorities(&self) -> Vec<PriorityInfo> {
+        self.muxer.current_priorities().await
+    }
+
     pub async fn run(mut self) -> Result<(), InstanceError> {
         loop {
             select! {
                 _ = self.device.update() => {
                     // Device update completed
                 },
+                message = self.muxer.run() => {
+                    // Muxer update completed
+                    match message {
+                        Ok(Some(message)) => {
+                            self.handle_message(message);
+                        },
+                        Ok(None) => {
+                            // Nothing to do
+                        },
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            // No more input messages
+                            return Ok(());
+                        },
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                            warn!("skipped {} input messages", skipped);
+                        },
+                    }
+                },
                 led_data = self.smoothing.update() => {
                     // The smoothing state has updated
                     self.device.set_led_data(led_data).await?;
                 },
-                message = self.receiver.recv() => {
-                    self.handle_message(message?);
-                }
             }
         }
     }

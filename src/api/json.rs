@@ -105,20 +105,7 @@ impl ClientConnection {
             HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
                 // TODO: Handle subscribe field
 
-                // Request priority information
-                let (sender, receiver) = tokio::sync::oneshot::channel();
-                self.source.send(
-                    ComponentName::All,
-                    InputMessageData::PrioritiesRequest {
-                        response: Arc::new(std::sync::Mutex::new(Some(sender))),
-                    },
-                )?;
-
-                // Receive priority information
-                let priorities = receiver.await?.into_iter().collect();
-
                 // Just answer the serverinfo request, no need to update state
-
                 return Ok(Some(
                     global
                         .read_config(|config| {
@@ -131,7 +118,7 @@ impl ClientConnection {
                             HyperionResponse::server_info(
                                 request.tan,
                                 // TODO: Priorities only for current instance
-                                priorities,
+                                vec![],
                                 // TODO: Fill adjustments
                                 vec![],
                                 // TODO: Fill effects

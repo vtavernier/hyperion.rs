@@ -7,7 +7,7 @@ use serde_derive::{Deserialize, Serialize};
 use sysinfo::SystemExt;
 use validator::Validate;
 
-use crate::{component::ComponentName, models::Color as RgbColor, utils::color_to_hsl};
+use crate::{api::types::PriorityInfo, component::ComponentName, models::Color as RgbColor};
 
 /// Change color adjustement values
 #[derive(Debug, Deserialize, Validate)]
@@ -531,94 +531,6 @@ impl BuildInfo {
         Self {
             version: version(),
             ..Default::default()
-        }
-    }
-}
-
-fn not_positive(x: &i64) -> bool {
-    !(*x > 0)
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub struct LedColor {
-    pub rgb: [u8; 3],
-    pub hsl: (u16, f32, f32),
-}
-
-impl From<&RgbColor> for LedColor {
-    fn from(c: &RgbColor) -> Self {
-        let hsl = color_to_hsl(*c);
-
-        Self {
-            rgb: [c.red, c.green, c.blue],
-            hsl: (
-                (hsl.hue.to_positive_degrees() * 100.) as u16,
-                hsl.saturation,
-                hsl.lightness,
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct PriorityInfo {
-    pub priority: i32,
-    #[serde(skip_serializing_if = "not_positive")]
-    pub duration_ms: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
-    pub component_id: ComponentName,
-    pub origin: String,
-    pub active: bool,
-    pub visible: bool,
-    #[serde(rename = "RGB", skip_serializing_if = "Option::is_none")]
-    pub value: Option<LedColor>,
-}
-
-impl PriorityInfo {
-    pub fn new(
-        msg: &crate::global::InputMessage,
-        origin: String,
-        expires: Option<std::time::Instant>,
-        visible: bool,
-    ) -> Self {
-        use crate::global::{InputMessageData, Message};
-
-        let duration_ms = expires
-            .and_then(|when| chrono::Duration::from_std(std::time::Instant::now() - when).ok())
-            .map(|d| d.num_milliseconds() as i64)
-            .unwrap_or(-1);
-        let active = duration_ms >= -1;
-
-        match msg.data() {
-            InputMessageData::SolidColor {
-                priority, color, ..
-            } => Self {
-                priority: *priority,
-                duration_ms,
-                owner: None,
-                component_id: msg.component(),
-                origin,
-                active,
-                visible,
-                value: Some(color.into()),
-            },
-            InputMessageData::Image { priority, .. } => Self {
-                priority: *priority,
-                duration_ms,
-                owner: None,
-                component_id: msg.component(),
-                origin,
-                active,
-                visible,
-                value: None,
-            },
-            InputMessageData::Clear { .. }
-            | InputMessageData::ClearAll { .. }
-            | InputMessageData::PrioritiesRequest { .. } => {
-                panic!("cannot create PriorityInfo for InputMessage")
-            }
         }
     }
 }

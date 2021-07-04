@@ -1,40 +1,20 @@
 use std::sync::Arc;
 
-use super::{InputMessageData, Message};
-use crate::{component::ComponentName, image::RawImage, models::Color};
+use super::InputMessageData;
+use crate::{image::RawImage, models::Color};
 
 #[derive(Debug, Clone)]
 pub struct MuxedMessage {
-    source_id: usize,
-    component: ComponentName,
     data: MuxedMessageData,
 }
 
-impl Message for MuxedMessage {
-    type Data = MuxedMessageData;
-
-    fn new(source_id: usize, component: ComponentName, data: Self::Data) -> Self {
-        Self {
-            source_id,
-            component,
-            data,
-        }
+impl MuxedMessage {
+    pub fn new(data: MuxedMessageData) -> Self {
+        Self { data }
     }
 
-    fn source_id(&self) -> usize {
-        self.source_id
-    }
-
-    fn component(&self) -> ComponentName {
-        self.component
-    }
-
-    fn data(&self) -> &Self::Data {
+    pub fn data(&self) -> &MuxedMessageData {
         &self.data
-    }
-
-    fn unregister_source(global: &mut super::GlobalData, input_source: &super::InputSource<Self>) {
-        global.unregister_muxed_source(input_source);
     }
 }
 
@@ -75,9 +55,6 @@ impl From<InputMessageData> for MuxedMessageData {
                 duration,
                 image,
             },
-            InputMessageData::PrioritiesRequest { .. } => {
-                panic!("PrioritiesRequest cannot be muxed")
-            }
         }
     }
 }

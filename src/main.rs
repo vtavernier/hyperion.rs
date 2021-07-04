@@ -134,10 +134,6 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
         });
     }
 
-    // Spawn priority muxer
-    let muxer = hyperion::muxer::PriorityMuxer::new(global.clone()).await;
-    tokio::spawn(muxer.run());
-
     // Should we continue running?
     let mut abort = false;
 

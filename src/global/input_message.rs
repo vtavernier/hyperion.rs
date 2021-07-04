@@ -1,9 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use super::Message;
-use crate::{
-    api::json::message::PriorityInfo, component::ComponentName, image::RawImage, models::Color,
-};
+use crate::{component::ComponentName, image::RawImage, models::Color};
 
 #[derive(Debug, Clone)]
 pub struct InputMessage {
@@ -56,9 +54,6 @@ pub enum InputMessageData {
         duration: Option<chrono::Duration>,
         image: Arc<RawImage>,
     },
-    PrioritiesRequest {
-        response: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Vec<PriorityInfo>>>>>,
-    },
 }
 
 impl InputMessageData {
@@ -68,7 +63,6 @@ impl InputMessageData {
             InputMessageData::Clear { priority } => Some(*priority),
             InputMessageData::SolidColor { priority, .. } => Some(*priority),
             InputMessageData::Image { priority, .. } => Some(*priority),
-            InputMessageData::PrioritiesRequest { .. } => None,
         }
     }
 
@@ -78,7 +72,6 @@ impl InputMessageData {
             InputMessageData::Clear { .. } => None,
             InputMessageData::SolidColor { duration, .. } => *duration,
             InputMessageData::Image { duration, .. } => *duration,
-            InputMessageData::PrioritiesRequest { .. } => None,
         }
     }
 }
