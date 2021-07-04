@@ -22,11 +22,21 @@ pub enum InstanceError {
     Chrono(#[from] chrono::ParseError),
 }
 
+fn default_true() -> bool {
+    true
+}
+fn default_false() -> bool {
+    false
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
 pub struct Instance {
     pub id: i32,
+    #[serde(default = "String::new")]
     pub friendly_name: String,
+    #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default = "chrono::Utc::now")]
     pub last_use: chrono::DateTime<chrono::Utc>,
 }
 
@@ -44,7 +54,7 @@ impl TryFrom<db_models::DbInstance> for Instance {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Setting {
     pub hyperion_inst: Option<i32>,
     pub config: SettingData,
@@ -59,7 +69,9 @@ pub enum EffectType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct BackgroundEffect {
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub color: Color,
     pub effect: String,
     pub enable: bool,
@@ -73,7 +85,7 @@ impl Default for BackgroundEffect {
             enable: true,
             ty: EffectType::Effect,
             color: Color::from_components((255, 138, 0)),
-            effect: String::new(),
+            effect: "Warm mood blobs".to_owned(),
         }
     }
 }
@@ -88,8 +100,9 @@ pub enum BlackBorderDetectorMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct BlackBorderDetector {
+    #[serde(default = "default_true")]
     pub enable: bool,
     #[validate(range(min = 0, max = 100))]
     pub threshold: u32,
@@ -115,7 +128,7 @@ impl Default for BlackBorderDetector {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct BoblightServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -142,7 +155,7 @@ pub enum ImageToLedMappingType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct ColorAdjustment {
     pub image_to_led_mapping_type: ImageToLedMappingType,
     #[validate]
@@ -159,16 +172,23 @@ impl Default for ColorAdjustment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct ChannelAdjustment {
     pub id: String,
     pub leds: String,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub white: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub red: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub green: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub blue: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub cyan: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub magenta: Color,
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub yellow: Color,
     #[validate(range(min = 0, max = 100))]
     pub backlight_threshold: u32,
@@ -234,12 +254,19 @@ impl ColorOrder {
     }
 }
 
+impl Default for ColorOrder {
+    fn default() -> Self {
+        Self::Rgb
+    }
+}
+
 #[delegatable_trait]
 pub trait DeviceConfig {
     fn hardware_led_count(&self) -> usize;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct Dummy {
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
@@ -259,16 +286,29 @@ impl Default for Dummy {
     }
 }
 
+fn default_ws_spi_rate() -> i32 {
+    3000000
+}
+
+fn default_ws_spi_rewrite_time() -> i32 {
+    1000
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct Ws2812Spi {
+    #[serde(default = "Default::default")]
     pub color_order: ColorOrder,
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
+    #[serde(default = "default_false")]
     pub invert: bool,
+    #[serde(default = "Default::default")]
     pub latch_time: i32,
     pub output: String,
+    #[serde(default = "default_ws_spi_rate")]
     pub rate: i32,
+    #[serde(default = "default_ws_spi_rewrite_time")]
     pub rewrite_time: i32,
 }
 
@@ -360,7 +400,7 @@ impl Default for Effects {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct FlatbuffersServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -386,7 +426,9 @@ impl ServerConfig for FlatbuffersServer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct ForegroundEffect {
+    #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub color: Color,
     pub effect: String,
     pub enable: bool,
@@ -402,13 +444,14 @@ impl Default for ForegroundEffect {
             enable: true,
             ty: EffectType::Effect,
             color: Color::from_components((255, 0, 0)),
-            effect: String::new(),
+            effect: "Rainbow swirl fast".to_owned(),
             duration_ms: Some(3000),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct Forwarder {
     pub enable: bool,
     pub json: Vec<String>,
@@ -446,7 +489,7 @@ impl Default for FramegrabberType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct Framegrabber {
     #[serde(rename = "type")]
     pub ty: FramegrabberType,
@@ -492,7 +535,7 @@ pub enum WatchedVersionBranch {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct General {
     #[validate(length(min = 4, max = 20))]
     pub name: String,
@@ -526,7 +569,7 @@ impl Default for V4L2Standard {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct GrabberV4L2 {
     pub device: String,
     pub input: i32,
@@ -591,7 +634,7 @@ impl Default for GrabberV4L2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct InstanceCapture {
     pub system_enable: bool,
     #[validate(range(min = 100, max = 253))]
@@ -613,6 +656,7 @@ impl Default for InstanceCapture {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct JsonServer {
     #[validate(range(min = 1024))]
     pub port: u16,
@@ -631,6 +675,7 @@ impl ServerConfig for JsonServer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct ClassicLedConfig {
     pub top: u32,
     pub bottom: u32,
@@ -709,6 +754,7 @@ pub enum MatrixStart {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct MatrixLedConfig {
     #[validate(range(max = 50))]
     pub ledshoriz: u32,
@@ -731,6 +777,7 @@ impl Default for MatrixLedConfig {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct LedConfig {
     #[validate]
     pub classic: ClassicLedConfig,
@@ -749,7 +796,9 @@ pub struct Led {
     pub vmin: f32,
     #[validate(range(min = 0., max = 1.))]
     pub vmax: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub color_order: Option<ColorOrder>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
 
@@ -822,6 +871,7 @@ pub enum LoggerLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct Logger {
     pub level: LoggerLevel,
 }
@@ -835,7 +885,7 @@ impl Default for Logger {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct Network {
     pub api_auth: bool,
     #[serde(default)]
@@ -861,7 +911,7 @@ impl Default for Network {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct ProtoServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -894,7 +944,7 @@ pub enum SmoothingType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct Smoothing {
     pub enable: bool,
     #[serde(rename = "type")]
@@ -934,7 +984,7 @@ impl Default for Smoothing {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct WebConfig {
     #[serde(rename = "document_root")]
     pub document_root: String,
@@ -961,7 +1011,7 @@ impl Default for WebConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, EnumDiscriminants, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, EnumDiscriminants, Deserialize)]
 #[strum_discriminants(name(SettingKind), derive(EnumString))]
 pub enum SettingData {
     BackgroundEffect(BackgroundEffect),
@@ -1099,17 +1149,39 @@ pub enum UserError {
     Chrono(#[from] chrono::ParseError),
     #[error("error parsing uuid: {0}")]
     Uuid(#[from] uuid::Error),
+    #[error("error decoding hex data: {0}")]
+    Hex(#[from] hex::FromHexError),
+}
+
+fn default_none<T>() -> Option<T> {
+    None
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
+    #[serde(
+        serialize_with = "hex::serialize",
+        deserialize_with = "hex::deserialize"
+    )]
     pub password: Vec<u8>,
+    #[serde(
+        serialize_with = "hex::serialize",
+        deserialize_with = "hex::deserialize"
+    )]
     pub token: Vec<u8>,
+    #[serde(
+        serialize_with = "hex::serialize",
+        deserialize_with = "hex::deserialize"
+    )]
     pub salt: Vec<u8>,
+    #[serde(default = "default_none")]
     pub comment: Option<String>,
+    #[serde(default = "default_none")]
     pub id: Option<String>,
+    #[serde(default = "chrono::Utc::now")]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(default = "chrono::Utc::now")]
     pub last_use: chrono::DateTime<chrono::Utc>,
 }
 
@@ -1119,9 +1191,9 @@ impl TryFrom<db_models::DbUser> for User {
     fn try_from(db: db_models::DbUser) -> Result<Self, Self::Error> {
         Ok(Self {
             name: db.user,
-            password: db.password,
-            token: db.token,
-            salt: db.salt,
+            password: hex::decode(db.password)?,
+            token: hex::decode(db.token)?,
+            salt: hex::decode(db.salt)?,
             comment: db.comment,
             id: db.id,
             created_at: chrono::DateTime::parse_from_rfc3339(&db.created_at)?
@@ -1132,7 +1204,8 @@ impl TryFrom<db_models::DbUser> for User {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default)]
 pub struct GlobalConfig {
     pub flatbuffers_server: FlatbuffersServer,
     pub forwarder: Forwarder,
@@ -1182,26 +1255,37 @@ pub struct InstanceConfig {
     #[validate]
     pub instance: Instance,
     #[validate]
+    #[serde(default = "Default::default")]
     pub background_effect: BackgroundEffect,
     #[validate]
+    #[serde(default = "Default::default")]
     pub black_border_detector: BlackBorderDetector,
     #[validate]
+    #[serde(default = "Default::default")]
     pub boblight_server: BoblightServer,
     #[validate]
+    #[serde(default = "Default::default")]
     pub color: ColorAdjustment,
     #[validate]
+    #[serde(default = "Default::default")]
     pub device: Device,
     #[validate]
+    #[serde(default = "Default::default")]
     pub effects: Effects,
     #[validate]
+    #[serde(default = "Default::default")]
     pub foreground_effect: ForegroundEffect,
     #[validate]
+    #[serde(default = "Default::default")]
     pub instance_capture: InstanceCapture,
     #[validate]
+    #[serde(default = "Default::default")]
     pub led_config: LedConfig,
     #[validate]
+    #[serde(default = "Default::default")]
     pub leds: Leds,
     #[validate]
+    #[serde(default = "Default::default")]
     pub smoothing: Smoothing,
 }
 

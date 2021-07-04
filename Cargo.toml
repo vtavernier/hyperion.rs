@@ -23,6 +23,7 @@ flatbuffers = "0.8"
 futures = "0.3"
 futures-io = "0.3"
 git-version = "0.3"
+hex = { version = "0.4", features = ["serde"] }
 hostname = "0.3"
 image = "0.23"
 lazy_static = "1.4.0"
