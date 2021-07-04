@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
+use super::types::i32_to_duration;
+
 use crate::{
     component::ComponentName,
     global::{InputMessage, InputMessageData, InputSourceHandle},
     image::{RawImage, RawImageError},
     models::Color,
-    utils::i32_to_duration,
 };
 
 /// Schema definitions as Serde serializable structures and enums

@@ -4,11 +4,19 @@ use crate::{
     component::ComponentName,
     global::{InputMessageData, Message},
     models::Color,
-    utils::color_to_hsl,
 };
 
 fn not_positive(x: &i64) -> bool {
     !(*x > 0)
+}
+
+fn color_to_hsl(color: Color) -> palette::Hsl {
+    let (r, g, b) = color.into_components();
+    palette::Hsl::from(palette::LinSrgb::new(
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+    ))
 }
 
 #[derive(Debug, Serialize)]
@@ -88,5 +96,17 @@ impl From<&Color> for LedColor {
                 hsl.lightness,
             ),
         }
+    }
+}
+
+pub fn i32_to_duration(d: Option<i32>) -> Option<chrono::Duration> {
+    if let Some(d) = d {
+        if d <= 0 {
+            None
+        } else {
+            Some(chrono::Duration::milliseconds(d as _))
+        }
+    } else {
+        None
     }
 }

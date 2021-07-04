@@ -80,7 +80,7 @@ impl Smoothing {
 
         // Convert current data to led data
         for (src, dst) in self.current_data.iter().zip(self.led_data.iter_mut()) {
-            *dst = crate::utils::color_to8(*src);
+            *dst = crate::color::color_to8(*src);
         }
     }
 

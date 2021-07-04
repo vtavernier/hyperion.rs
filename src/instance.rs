@@ -65,7 +65,7 @@ impl Instance {
     }
 
     fn handle_color(&mut self, color: models::Color) {
-        let color = crate::utils::color_to16(color);
+        let color = crate::color::color_to16(color);
         self.color_data.iter_mut().map(|x| *x = color).count();
     }
 
