@@ -147,6 +147,12 @@ impl Default for BoblightServer {
     }
 }
 
+impl ServerConfig for BoblightServer {
+    fn port(&self) -> u16 {
+        self.port
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageToLedMappingType {

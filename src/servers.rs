@@ -4,6 +4,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 use crate::{global::Global, models::ServerConfig};
 
+pub mod boblight;
 pub mod flat;
 pub mod json;
 pub mod proto;

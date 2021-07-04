@@ -30,6 +30,11 @@ pub enum MuxedMessageData {
         duration: Option<chrono::Duration>,
         image: Arc<RawImage>,
     },
+    LedColors {
+        priority: i32,
+        duration: Option<chrono::Duration>,
+        led_colors: Arc<Vec<Color>>,
+    },
 }
 
 impl From<InputMessageData> for MuxedMessageData {
@@ -54,6 +59,15 @@ impl From<InputMessageData> for MuxedMessageData {
                 priority,
                 duration,
                 image,
+            },
+            InputMessageData::LedColors {
+                priority,
+                duration,
+                led_colors,
+            } => Self::LedColors {
+                priority,
+                duration,
+                led_colors,
             },
         }
     }

@@ -54,6 +54,11 @@ pub enum InputMessageData {
         duration: Option<chrono::Duration>,
         image: Arc<RawImage>,
     },
+    LedColors {
+        priority: i32,
+        duration: Option<chrono::Duration>,
+        led_colors: Arc<Vec<Color>>,
+    },
 }
 
 impl InputMessageData {
@@ -63,6 +68,7 @@ impl InputMessageData {
             InputMessageData::Clear { priority } => Some(*priority),
             InputMessageData::SolidColor { priority, .. } => Some(*priority),
             InputMessageData::Image { priority, .. } => Some(*priority),
+            InputMessageData::LedColors { priority, .. } => Some(*priority),
         }
     }
 
@@ -72,6 +78,7 @@ impl InputMessageData {
             InputMessageData::Clear { .. } => None,
             InputMessageData::SolidColor { duration, .. } => *duration,
             InputMessageData::Image { duration, .. } => *duration,
+            InputMessageData::LedColors { duration, .. } => *duration,
         }
     }
 }

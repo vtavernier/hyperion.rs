@@ -33,6 +33,8 @@ pub struct Global(Arc<RwLock<GlobalData>>);
 
 #[derive(Display, Debug)]
 pub enum InputSourceName {
+    #[display("Boblight({peer_addr})")]
+    Boblight { peer_addr: SocketAddr },
     #[display("FlatBuffers({peer_addr}): {origin}")]
     FlatBuffers {
         peer_addr: SocketAddr,

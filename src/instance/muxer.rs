@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use futures::Future;
 use tokio::select;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::{broadcast, mpsc};
 
 use crate::{
     api::types::PriorityInfo,
@@ -25,7 +25,8 @@ struct InputEntry {
 
 pub struct PriorityMuxer {
     global: Global,
-    receiver: Receiver<InputMessage>,
+    receiver: broadcast::Receiver<InputMessage>,
+    local_receiver: mpsc::Receiver<InputMessage>,
     inputs: BTreeMap<i32, InputEntry>,
     input_id: usize,
     timeouts: HashMap<
@@ -38,10 +39,13 @@ const MAX_PRIORITY: i32 = 256;
 const MUXER_ID: usize = 0;
 
 impl PriorityMuxer {
-    pub async fn new(global: Global) -> Self {
+    pub async fn new(global: Global) -> (Self, mpsc::Sender<InputMessage>) {
+        let (tx, rx) = mpsc::channel(4);
+
         let mut this = Self {
             global: global.clone(),
             receiver: global.subscribe_input().await,
+            local_receiver: rx,
             inputs: Default::default(),
             timeouts: Default::default(),
             input_id: 0,
@@ -50,7 +54,7 @@ impl PriorityMuxer {
         // Start by clearing all outputs
         this.clear_all().await;
 
-        this
+        (this, tx)
     }
 
     fn current_priority(&self) -> i32 {
@@ -212,8 +216,7 @@ impl PriorityMuxer {
         match input.data() {
             InputMessageData::ClearAll => Some(self.clear_all().await),
             InputMessageData::Clear { priority } => self.clear(*priority).await,
-            InputMessageData::SolidColor { .. } => self.handle_input(input).await,
-            InputMessageData::Image { .. } => self.handle_input(input).await,
+            _ => self.handle_input(input).await,
         }
     }
 
@@ -241,6 +244,21 @@ impl PriorityMuxer {
             .await
     }
 
+    async fn recv(&mut self) -> Result<InputMessage, tokio::sync::broadcast::error::RecvError> {
+        select! {
+            recv = self.receiver.recv() => {
+                Ok(recv?)
+            },
+            recv = self.local_receiver.recv() => {
+                if let Some(recv) = recv {
+                    Ok(recv)
+                } else {
+                    Err(tokio::sync::broadcast::error::RecvError::Closed)
+                }
+            }
+        }
+    }
+
     pub async fn run(
         &mut self,
     ) -> Result<Option<MuxedMessage>, tokio::sync::broadcast::error::RecvError> {
@@ -249,12 +267,12 @@ impl PriorityMuxer {
                 id = futures::future::select_all(self.timeouts.values().map(|f| f())) => {
                     return Ok(self.handle_timeout(id.0).await);
                 },
-                recv = self.receiver.recv() => {
+                recv = self.recv() => {
                     return Ok(self.handle_input_recv(recv?).await);
-                }
-            };
+                },
+            }
         } else {
-            let recv = self.receiver.recv().await?;
+            let recv = self.recv().await?;
             Ok(self.handle_input_recv(recv).await)
         }
     }

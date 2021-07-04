@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::broadcast;
 
 use crate::api::types::PriorityInfo;
+use crate::color::color_to16;
+use crate::models::Color;
 use crate::{
     color::{ChannelAdjustments, ChannelAdjustmentsBuilder},
     global::Global,
@@ -33,7 +37,7 @@ pub enum InstanceError {
 }
 
 pub struct Instance {
-    config: InstanceConfig,
+    config: Arc<InstanceConfig>,
     device: Device,
     muxer: PriorityMuxer,
     color_data: Vec<models::Color16>,
@@ -53,10 +57,36 @@ impl Instance {
             .build();
         let smoothing = Smoothing::new(config.smoothing.clone(), led_count);
 
+        let (muxer, tx) = PriorityMuxer::new(global.clone()).await;
+
+        let config = Arc::new(config);
+
+        // TODO: Terminate BoblightServer on Instance drop?
+        tokio::spawn({
+            let instance = config.clone();
+            let config = instance.boblight_server.clone();
+
+            async move {
+                let result = crate::servers::bind(config, global, move |tcp, global| {
+                    crate::servers::boblight::handle_client(
+                        tcp,
+                        tx.clone(),
+                        instance.clone(),
+                        global,
+                    )
+                })
+                .await;
+
+                if let Err(error) = result {
+                    error!("Boblight server terminated: {:?}", error);
+                }
+            }
+        });
+
         Ok(Self {
             config,
             device,
-            muxer: PriorityMuxer::new(global).await,
+            muxer,
             color_data: vec![models::Color16::default(); led_count],
             black_border_detector,
             channel_adjustments,
@@ -128,6 +158,20 @@ impl Instance {
         }
     }
 
+    fn handle_led_colors(&mut self, led_colors: &[Color]) {
+        if led_colors.len() != self.color_data.len() {
+            error!(
+                "invalid led color data, expected {} leds, got {}",
+                self.color_data.len(),
+                led_colors.len()
+            );
+        } else {
+            for (led_mut, color) in self.color_data.iter_mut().zip(led_colors.iter()) {
+                *led_mut = color_to16(*color);
+            }
+        }
+    }
+
     fn handle_message(&mut self, message: MuxedMessage) {
         // Update color data
         match message.data() {
@@ -137,6 +181,9 @@ impl Instance {
             }
             MuxedMessageData::Image { image, .. } => {
                 self.handle_image(&*image);
+            }
+            MuxedMessageData::LedColors { led_colors, .. } => {
+                self.handle_led_colors(&*led_colors);
             }
         }
 
