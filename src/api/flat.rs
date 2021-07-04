@@ -5,6 +5,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
+    component::ComponentName,
     global::{Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName},
     image::{RawImage, RawImageError},
     models::Color,
@@ -43,11 +44,14 @@ pub async fn handle_request(
         if let Some(clear) = request.command_as_clear() {
             // Update state
             if clear.priority() < 0 {
-                source.send(InputMessageData::ClearAll)?;
+                source.send(ComponentName::FlatbufServer, InputMessageData::ClearAll)?;
             } else {
-                source.send(InputMessageData::Clear {
-                    priority: clear.priority(),
-                })?;
+                source.send(
+                    ComponentName::FlatbufServer,
+                    InputMessageData::Clear {
+                        priority: clear.priority(),
+                    },
+                )?;
             }
         } else if let Some(color) = request.command_as_color() {
             let rgb = color.data();
@@ -58,12 +62,15 @@ pub async fn handle_request(
             );
 
             // Update state
-            source.send(InputMessageData::SolidColor {
-                // TODO
-                priority: 0,
-                duration: i32_to_duration(Some(color.duration())),
-                color: Color::from_components(rgb),
-            })?;
+            source.send(
+                ComponentName::FlatbufServer,
+                InputMessageData::SolidColor {
+                    // TODO
+                    priority: 0,
+                    duration: i32_to_duration(Some(color.duration())),
+                    color: Color::from_components(rgb),
+                },
+            )?;
         } else if let Some(image) = request.command_as_image() {
             // Get raw image
             let data = image
@@ -82,11 +89,14 @@ pub async fn handle_request(
             let raw_image = RawImage::try_from((data.to_vec(), width, height))?;
 
             // Update state
-            source.send(InputMessageData::Image {
-                priority,
-                duration: i32_to_duration(Some(duration)),
-                image: Arc::new(raw_image),
-            })?;
+            source.send(
+                ComponentName::FlatbufServer,
+                InputMessageData::Image {
+                    priority,
+                    duration: i32_to_duration(Some(duration)),
+                    image: Arc::new(raw_image),
+                },
+            )?;
         } else if let Some(_) = request.command_as_register() {
             return Err(FlatApiError::AlreadyRegistered);
         } else {

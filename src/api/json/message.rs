@@ -1,8 +1,13 @@
+use std::{
+    path::PathBuf,
+    process::{Command, Stdio},
+};
+
 use serde_derive::{Deserialize, Serialize};
-use serde_json::json;
+use sysinfo::SystemExt;
 use validator::Validate;
 
-use crate::models::Color as RgbColor;
+use crate::{component::ComponentName, models::Color as RgbColor, utils::color_to_hsl};
 
 /// Change color adjustement values
 #[derive(Debug, Deserialize, Validate)]
@@ -11,7 +16,8 @@ pub struct Adjustment {
     pub adjustment: ChannelAdjustment,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelAdjustment {
     pub id: Option<String>,
     pub white: RgbColor,
@@ -22,18 +28,40 @@ pub struct ChannelAdjustment {
     pub magenta: RgbColor,
     pub yellow: RgbColor,
     #[validate(range(min = 0, max = 100))]
-    pub backlight_threshold: i32,
+    pub backlight_threshold: u32,
     pub backlight_colored: bool,
     #[validate(range(min = 0, max = 100))]
-    pub brightness: i32,
+    pub brightness: u32,
     #[validate(range(min = 0, max = 100))]
-    pub brightness_compensation: i32,
+    pub brightness_compensation: u32,
     #[validate(range(min = 0.1, max = 5.0))]
     pub gamma_red: f32,
     #[validate(range(min = 0.1, max = 5.0))]
     pub gamma_green: f32,
     #[validate(range(min = 0.1, max = 5.0))]
     pub gamma_blue: f32,
+}
+
+impl From<crate::models::ChannelAdjustment> for ChannelAdjustment {
+    fn from(adj: crate::models::ChannelAdjustment) -> Self {
+        Self {
+            id: Some(adj.id),
+            white: adj.white,
+            red: adj.red,
+            green: adj.green,
+            blue: adj.blue,
+            cyan: adj.cyan,
+            magenta: adj.magenta,
+            yellow: adj.yellow,
+            backlight_threshold: adj.backlight_threshold,
+            backlight_colored: adj.backlight_colored,
+            brightness: adj.brightness,
+            brightness_compensation: adj.brightness_compensation,
+            gamma_red: adj.gamma_red,
+            gamma_green: adj.gamma_green,
+            gamma_blue: adj.gamma_blue,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,21 +119,8 @@ pub struct Color {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Component {
-    All,
-    Smoothing,
-    BlackBorder,
-    Forwarder,
-    BoblightServer,
-    Grabber,
-    V4L,
-    LedDevice,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct ComponentStatus {
-    pub component: Component,
+    pub component: ComponentName,
     pub state: bool,
 }
 
@@ -299,7 +314,7 @@ pub struct SourceSelect {
     pub auto: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum VideoMode {
     #[serde(rename = "2D")]
     Mode2D,
@@ -385,74 +400,219 @@ impl Validate for HyperionMessage {
 pub struct EffectDefinition {
     /// User-friendly name of the effect
     pub name: String,
+    /// Path to the effect definition file
+    pub file: String,
     /// Path to the script to run
     pub script: String,
     /// Extra script arguments
     pub args: serde_json::Value,
 }
 
-/// Hyperion build info
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum LedDeviceClass {
+    Dummy,
+    PhilipsHue,
+    #[serde(rename = "Ws2812SPI")]
+    Ws2812Spi,
+}
+
 #[derive(Debug, Serialize)]
-pub struct BuildInfo {
-    /// Version number
-    version: String,
-    /// Build time
-    time: String,
+pub struct LedDevicesInfo {
+    pub available: Vec<LedDeviceClass>,
+}
+
+impl LedDevicesInfo {
+    pub fn new() -> Self {
+        use LedDeviceClass::*;
+
+        Self {
+            available: vec![Dummy, PhilipsHue, Ws2812Spi],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum GrabberClass {
+    AmLogic,
+    DirectX,
+    Dispmanx,
+    Framebuffer,
+    OSX,
+    Qt,
+    V4L2 { device: PathBuf },
+    X11,
+    Xcb,
+}
+
+impl std::fmt::Display for GrabberClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GrabberClass::AmLogic => write!(f, "AmLogic"),
+            GrabberClass::DirectX => write!(f, "DirectX"),
+            GrabberClass::Dispmanx => write!(f, "Dispmanx"),
+            GrabberClass::Framebuffer => write!(f, "FrameBuffer"),
+            GrabberClass::OSX => write!(f, "OSX FrameGrabber"),
+            GrabberClass::Qt => write!(f, "Qt"),
+            GrabberClass::V4L2 { device } => write!(f, "V4L2:{}", device.display()),
+            GrabberClass::X11 => write!(f, "X11"),
+            GrabberClass::Xcb => write!(f, "Xcb"),
+        }
+    }
+}
+
+impl serde::ser::Serialize for GrabberClass {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct GrabbersInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<GrabberClass>,
+    pub available: Vec<GrabberClass>,
+}
+
+impl GrabbersInfo {
+    pub fn new() -> Self {
+        Self {
+            // TODO: Report active grabber
+            active: None,
+            // TODO: Add grabbers when they are implemented
+            available: vec![], // TODO: Add v4l2_properties for available V4L2 devices
+        }
+    }
 }
 
 /// Hyperion server info
 #[derive(Debug, Serialize)]
 pub struct ServerInfo {
-    /// Server hostname
-    hostname: String,
-    /// Effects
-    effects: Vec<EffectDefinition>,
-    /// Build info
-    hyperion_build: BuildInfo,
-
-    /// Priority information (array)
-    priorities: Vec<PriorityInfo>,
-    /// Color correction information (array)
-    correction: serde_json::Value,
-    /// Temperature correction information (array)
-    temperature: serde_json::Value,
-    /// Transform correction information (array)
-    adjustment: serde_json::Value,
-    /// Active effect info (array)
-    #[serde(rename = "activeEffects")]
-    active_effects: serde_json::Value,
-    /// Active static LED color (array)
-    #[serde(rename = "activeLedColor")]
-    active_led_color: serde_json::Value,
+    /// Priority information
+    pub priorities: Vec<PriorityInfo>,
+    pub priorities_autoselect: bool,
+    /// Color adjustment information
+    pub adjustment: Vec<ChannelAdjustment>,
+    /// Effect information
+    pub effects: Vec<EffectDefinition>,
+    /// LED device information
+    #[serde(rename = "ledDevices")]
+    pub led_devices: LedDevicesInfo,
+    /// Grabber information
+    pub grabbers: GrabbersInfo,
+    /// Current video mode
+    #[serde(rename = "videomode")]
+    pub video_mode: VideoMode,
+    // TODO: components field
+    // TODO: imageToLedMappingType field
+    // TODO: sessions field
     #[serde(rename = "instance")]
-    instances: Vec<InstanceInfo>,
+    pub instances: Vec<InstanceInfo>,
+    // TODO: leds field
+    pub hostname: String,
+    // TODO: (legacy) transform field
+    // TODO: (legacy) activeEffects field
+    // TODO: (legacy) activeLedColor field
+}
+
+/// Hyperion build info
+#[derive(Default, Debug, Serialize)]
+pub struct BuildInfo {
+    /// Version number
+    pub version: String,
+    /// Build time
+    pub time: String,
+}
+
+impl BuildInfo {
+    pub fn new() -> Self {
+        Self {
+            version: version(),
+            ..Default::default()
+        }
+    }
+}
+
+fn not_positive(x: &i64) -> bool {
+    !(*x > 0)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct LedColor {
+    pub rgb: [u8; 3],
+    pub hsl: (u16, f32, f32),
+}
+
+impl From<&RgbColor> for LedColor {
+    fn from(c: &RgbColor) -> Self {
+        let hsl = color_to_hsl(*c);
+
+        Self {
+            rgb: [c.red, c.green, c.blue],
+            hsl: (
+                (hsl.hue.to_positive_degrees() * 100.) as u16,
+                hsl.saturation,
+                hsl.lightness,
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
 pub struct PriorityInfo {
-    priority: i32,
-    duration: i32,
-    r#type: &'static str,
+    pub priority: i32,
+    #[serde(skip_serializing_if = "not_positive")]
+    pub duration_ms: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    pub component_id: ComponentName,
+    pub origin: String,
+    pub active: bool,
+    pub visible: bool,
+    #[serde(rename = "RGB", skip_serializing_if = "Option::is_none")]
+    pub value: Option<LedColor>,
 }
 
-// TODO: Better From impl for PriorityInfo
-impl From<crate::global::InputMessage> for PriorityInfo {
-    fn from(msg: crate::global::InputMessage) -> Self {
+impl PriorityInfo {
+    pub fn new(
+        msg: &crate::global::InputMessage,
+        origin: String,
+        expires: Option<std::time::Instant>,
+        visible: bool,
+    ) -> Self {
         use crate::global::{InputMessageData, Message};
+
+        let duration_ms = expires
+            .and_then(|when| chrono::Duration::from_std(std::time::Instant::now() - when).ok())
+            .map(|d| d.num_milliseconds() as i64)
+            .unwrap_or(-1);
+        let active = duration_ms >= -1;
+
         match msg.data() {
             InputMessageData::SolidColor {
-                priority, duration, ..
+                priority, color, ..
             } => Self {
                 priority: *priority,
-                duration: duration.map(|d| d.num_milliseconds() as i32).unwrap_or(0),
-                r#type: "color",
+                duration_ms,
+                owner: None,
+                component_id: msg.component(),
+                origin,
+                active,
+                visible,
+                value: Some(color.into()),
             },
-            InputMessageData::Image {
-                priority, duration, ..
-            } => Self {
+            InputMessageData::Image { priority, .. } => Self {
                 priority: *priority,
-                duration: duration.map(|d| d.num_milliseconds() as i32).unwrap_or(0),
-                r#type: "color",
+                duration_ms,
+                owner: None,
+                component_id: msg.component(),
+                origin,
+                active,
+                visible,
+                value: None,
             },
             InputMessageData::Clear { .. }
             | InputMessageData::ClearAll { .. }
@@ -465,9 +625,9 @@ impl From<crate::global::InputMessage> for PriorityInfo {
 
 #[derive(Debug, Serialize)]
 pub struct InstanceInfo {
-    friendly_name: String,
-    instance: i32,
-    running: bool,
+    pub friendly_name: String,
+    pub instance: i32,
+    pub running: bool,
 }
 
 impl From<&crate::models::Instance> for InstanceInfo {
@@ -492,14 +652,99 @@ pub struct HyperionResponse {
     info: Option<HyperionResponseInfo>,
 }
 
+#[derive(Default, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfo {
+    pub kernel_type: String,
+    pub kernel_version: String,
+    pub architecture: String,
+    pub cpu_model_name: String,
+    pub cpu_model_type: String,
+    pub cpu_hardware: String,
+    pub cpu_revision: String,
+    pub word_size: String,
+    pub product_type: String,
+    pub product_version: String,
+    pub pretty_name: String,
+    pub host_name: String,
+    pub domain_name: String,
+    pub qt_version: String,
+    pub py_version: String,
+}
+
+impl SystemInfo {
+    pub fn new() -> Self {
+        let system = sysinfo::System::new();
+
+        // TODO: Fill in other fields
+        Self {
+            kernel_type: if cfg!(target_os = "windows") {
+                "winnt".to_owned()
+            } else if cfg!(target_os = "linux") {
+                Command::new("uname")
+                    .args(&["-s"])
+                    .stdout(Stdio::piped())
+                    .output()
+                    .ok()
+                    .and_then(|output| String::from_utf8(output.stdout).ok())
+                    .unwrap_or_else(String::new)
+            } else {
+                String::new()
+            },
+            kernel_version: system.get_os_version().unwrap_or_else(String::new),
+            host_name: system.get_host_name().unwrap_or_else(String::new),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HyperionInfo {
+    pub version: String,
+    pub build: String,
+    pub gitremote: String,
+    pub time: String,
+    pub id: uuid::Uuid,
+    pub read_only_mode: bool,
+}
+
+impl HyperionInfo {
+    pub fn new(id: uuid::Uuid) -> Self {
+        // TODO: Fill in other fields
+        Self {
+            // We emulate hyperion.ng 2.0.0-alpha.8
+            version: "2.0.0-alpha.8".to_owned(),
+            build: version(),
+            id,
+            read_only_mode: false,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SysInfo {
+    pub system: SystemInfo,
+    pub hyperion: HyperionInfo,
+}
+
+impl SysInfo {
+    pub fn new(id: uuid::Uuid) -> Self {
+        Self {
+            system: SystemInfo::new(),
+            hyperion: HyperionInfo::new(id),
+        }
+    }
+}
+
 /// Hyperion JSON response
 #[derive(Debug, Serialize)]
 #[serde(tag = "command", content = "info")]
 pub enum HyperionResponseInfo {
     /// Server information response
-    // Box because of large size difference
     #[serde(rename = "serverinfo")]
-    ServerInfo(Box<ServerInfo>),
+    ServerInfo(ServerInfo),
     /// TokenRequired response
     #[serde(rename = "auth-tokenRequired")]
     TokenRequired {
@@ -508,10 +753,7 @@ pub enum HyperionResponseInfo {
     },
     /// SysInfo response
     #[serde(rename = "sysinfo")]
-    SysInfo {
-        system: serde_json::Value,
-        hyperion: serde_json::Value,
-    },
+    SysInfo(SysInfo),
 }
 
 impl HyperionResponse {
@@ -544,37 +786,31 @@ impl HyperionResponse {
         }
     }
 
-    fn version() -> String {
-        git_version::git_version!(prefix = "hyperion.rs-", args = ["--always", "--tags"]).to_owned()
-    }
-
     /// Return a server information response
     pub fn server_info(
         tan: Option<i32>,
-        effects: Vec<EffectDefinition>,
         priorities: Vec<PriorityInfo>,
+        adjustment: Vec<ChannelAdjustment>,
+        effects: Vec<EffectDefinition>,
         instances: Vec<InstanceInfo>,
     ) -> Self {
         Self::success_info(
             tan,
-            HyperionResponseInfo::ServerInfo(Box::new(ServerInfo {
+            HyperionResponseInfo::ServerInfo(ServerInfo {
+                priorities,
+                // TODO: Actual autoselect value
+                priorities_autoselect: true,
+                adjustment,
+                effects,
+                led_devices: LedDevicesInfo::new(),
+                grabbers: GrabbersInfo::new(),
+                // TODO: Actual video mode
+                video_mode: VideoMode::Mode2D,
+                instances,
                 hostname: hostname::get()
                     .map(|s| s.to_string_lossy().to_string())
                     .unwrap_or_else(|_| "<unknown hostname>".to_owned()),
-                effects,
-                hyperion_build: BuildInfo {
-                    version: Self::version(),
-                    time: "".to_owned(),
-                },
-
-                priorities,
-                correction: json!([]),
-                temperature: json!([]),
-                adjustment: json!([]),
-                active_effects: json!([]),
-                active_led_color: json!([]),
-                instances,
-            })),
+            }),
         )
     }
 
@@ -584,20 +820,10 @@ impl HyperionResponse {
 
     pub fn sys_info(tan: Option<i32>, id: uuid::Uuid) -> Self {
         // TODO: Properly fill out this response
-        Self::success_info(
-            tan,
-            HyperionResponseInfo::SysInfo {
-                system: json!({}),
-                hyperion: json!({
-                    // We emulate hyperion.ng 2.0.0
-                    "version": "2.0.0",
-                    "build": Self::version(),
-                    "gitremote": "",
-                    "time": "",
-                    "id": id,
-                    "readOnlyMode": false,
-                }),
-            },
-        )
+        Self::success_info(tan, HyperionResponseInfo::SysInfo(SysInfo::new(id)))
     }
+}
+
+fn version() -> String {
+    git_version::git_version!(prefix = "hyperion.rs-", args = ["--always", "--tags"]).to_owned()
 }

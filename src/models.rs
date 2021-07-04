@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use ambassador::{delegatable_trait, Delegate};
-use palette::rgb::Rgb;
 use serde_derive::{Deserialize, Serialize};
 use strum_macros::{EnumDiscriminants, EnumString, IntoStaticStr};
 use thiserror::Error;

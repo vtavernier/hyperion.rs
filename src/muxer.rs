@@ -1,11 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
+use std::time::Instant;
 
 use futures::Future;
 use tokio::select;
 use tokio::sync::broadcast::Receiver;
 
+use crate::api::json::message::PriorityInfo;
 use crate::{
+    component::ComponentName,
     global::{
         Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName, Message,
         MuxedMessage,
@@ -13,10 +16,18 @@ use crate::{
     models::Color,
 };
 
+#[derive(Debug)]
+struct InputEntry {
+    input_id: usize,
+    message: InputMessage,
+    expires: Option<Instant>,
+}
+
 pub struct PriorityMuxer {
+    global: Global,
     receiver: Receiver<InputMessage>,
     source_handle: InputSourceHandle<MuxedMessage>,
-    inputs: BTreeMap<i32, (usize, InputMessage)>,
+    inputs: BTreeMap<i32, InputEntry>,
     input_id: usize,
     timeouts: HashMap<
         usize,
@@ -29,6 +40,7 @@ const MAX_PRIORITY: i32 = 256;
 impl PriorityMuxer {
     pub async fn new(global: Global) -> Self {
         let mut this = Self {
+            global: global.clone(),
             receiver: global.subscribe_input().await,
             source_handle: global
                 .register_muxed_source(InputSourceName::PriorityMuxer)
@@ -53,7 +65,10 @@ impl PriorityMuxer {
         // unwrap: there is always at least one input
         let target = self.inputs.values().next().unwrap();
 
-        match self.source_handle.send(target.1.data().clone().into()) {
+        match self.source_handle.send(
+            target.message.component(),
+            target.message.data().clone().into(),
+        ) {
             Ok(_) => {}
             Err(error) => {
                 warn!("error forwarding muxed message: {:?}", error);
@@ -63,26 +78,35 @@ impl PriorityMuxer {
 
     fn insert_input(&mut self, priority: i32, input: InputMessage) {
         // Get the duration of this input
-        let duration = input.data().duration();
+        let expires = input
+            .data()
+            .duration()
+            .map(|duration| Instant::now() + duration.to_std().unwrap());
 
         // Insert the input, replacing the old one
-        let before = self.inputs.insert(priority, (self.input_id, input));
+        let before = self.inputs.insert(
+            priority,
+            InputEntry {
+                input_id: self.input_id,
+                message: input,
+                expires,
+            },
+        );
 
         // Drop the future for the previous input
-        if let Some((id, _)) = before {
-            self.timeouts.remove(&id);
+        if let Some(InputEntry { input_id, .. }) = before {
+            self.timeouts.remove(&input_id);
         }
 
         // Add the future for the current input
-        if let Some(duration) = duration {
+        if let Some(expires) = expires {
             let id = self.input_id;
-            let until = std::time::Instant::now() + duration.to_std().unwrap();
 
             self.timeouts.insert(
                 self.input_id,
                 Box::new(move || {
                     Box::pin(async move {
-                        tokio::time::sleep_until(until.into()).await;
+                        tokio::time::sleep_until(expires.into()).await;
                         (id, priority)
                     })
                 }),
@@ -99,8 +123,8 @@ impl PriorityMuxer {
     }
 
     fn clear_input(&mut self, priority: i32) -> bool {
-        if let Some((id, _)) = self.inputs.remove(&priority) {
-            self.timeouts.remove(&id);
+        if let Some(InputEntry { input_id, .. }) = self.inputs.remove(&priority) {
+            self.timeouts.remove(&input_id);
             true
         } else {
             false
@@ -115,6 +139,7 @@ impl PriorityMuxer {
             MAX_PRIORITY,
             InputMessage::new(
                 self.source_handle.id(),
+                ComponentName::All,
                 InputMessageData::SolidColor {
                     priority: MAX_PRIORITY,
                     duration: None,
@@ -167,7 +192,7 @@ impl PriorityMuxer {
 
         // Check if the input for the target priority is still the one mentioned in the future
         if let Some(input) = self.inputs.get(&priority) {
-            if input.0 == id {
+            if input.input_id == id {
                 if let Some(removed) = self.inputs.remove(&priority) {
                     debug!("timeout for input {:?}", removed);
                 }
@@ -201,9 +226,31 @@ impl PriorityMuxer {
                     InputMessageData::SolidColor { .. } => self.handle_input(input).await,
                     InputMessageData::Image { .. } => self.handle_input(input).await,
                     InputMessageData::PrioritiesRequest { response } => {
-                        response.lock().unwrap().take().map(move |channel| {
-                            channel.send(self.inputs.values().map(|(_, x)| x).cloned().collect())
-                        });
+                        self.global
+                            .read_input_sources(|sources| {
+                                response.lock().unwrap().take().map(|channel| {
+                                    channel.send(
+                                        // Inputs are sorted by priority, so i == 0 denotes the
+                                        // current (active) entry
+                                        self.inputs
+                                            .values()
+                                            .enumerate()
+                                            .map(|(i, entry)| {
+                                                PriorityInfo::new(
+                                                    &entry.message,
+                                                    sources
+                                                        .get(&entry.message.source_id())
+                                                        .map(|source| source.name().to_string())
+                                                        .unwrap_or_else(String::new),
+                                                    entry.expires,
+                                                    i == 0,
+                                                )
+                                            })
+                                            .collect(),
+                                    )
+                                });
+                            })
+                            .await
                     }
                 }
             }

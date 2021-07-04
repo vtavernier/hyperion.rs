@@ -5,6 +5,7 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 
 use super::{Global, InputSourceName, Message};
+use crate::component::ComponentName;
 
 #[derive(Display)]
 #[display("`{name}` (id = {id}, priority = {priority:?})")]
@@ -34,12 +35,20 @@ impl<T: Message> InputSource<T> {
         self.id
     }
 
+    pub fn name(&self) -> &InputSourceName {
+        &self.name
+    }
+
     pub fn priority(&self) -> Option<i32> {
         self.priority
     }
 
-    pub fn send(&self, message: T::Data) -> Result<usize, broadcast::error::SendError<T>> {
-        self.tx.send(T::new(self.id, message))
+    pub fn send(
+        &self,
+        component: ComponentName,
+        message: T::Data,
+    ) -> Result<usize, broadcast::error::SendError<T>> {
+        self.tx.send(T::new(self.id, component, message))
     }
 }
 

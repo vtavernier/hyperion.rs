@@ -10,6 +10,15 @@ pub fn color_to16(color: Color) -> Color16 {
     Color16::from_components(((r as u16) << 8, (g as u16) << 8, (b as u16) << 8))
 }
 
+pub fn color_to_hsl(color: Color) -> palette::Hsl {
+    let (r, g, b) = color.into_components();
+    palette::Hsl::from(palette::LinSrgb::new(
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+    ))
+}
+
 pub fn i32_to_duration(d: Option<i32>) -> Option<chrono::Duration> {
     if let Some(d) = d {
         if d <= 0 {

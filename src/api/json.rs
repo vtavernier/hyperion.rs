@@ -5,6 +5,7 @@ use thiserror::Error;
 use validator::Validate;
 
 use crate::{
+    component::ComponentName,
     global::{Global, InputMessage, InputMessageData, InputSourceHandle},
     image::{RawImage, RawImageError},
 };
@@ -47,12 +48,14 @@ impl ClientConnection {
         match request.command {
             HyperionCommand::ClearAll => {
                 // Update state
-                self.source.send(InputMessageData::ClearAll)?;
+                self.source
+                    .send(ComponentName::All, InputMessageData::ClearAll)?;
             }
 
             HyperionCommand::Clear(message::Clear { priority }) => {
                 // Update state
-                self.source.send(InputMessageData::Clear { priority })?;
+                self.source
+                    .send(ComponentName::All, InputMessageData::Clear { priority })?;
             }
 
             HyperionCommand::Color(message::Color {
@@ -64,11 +67,14 @@ impl ClientConnection {
                 // TODO: Handle origin field
 
                 // Update state
-                self.source.send(InputMessageData::SolidColor {
-                    priority,
-                    duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
-                    color,
-                })?;
+                self.source.send(
+                    ComponentName::Color,
+                    InputMessageData::SolidColor {
+                        priority,
+                        duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
+                        color,
+                    },
+                )?;
             }
 
             HyperionCommand::Image(message::Image {
@@ -86,11 +92,14 @@ impl ClientConnection {
 
                 let raw_image = RawImage::try_from((imagedata, imagewidth, imageheight))?;
 
-                self.source.send(InputMessageData::Image {
-                    priority,
-                    duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
-                    image: Arc::new(raw_image),
-                })?;
+                self.source.send(
+                    ComponentName::Image,
+                    InputMessageData::Image {
+                        priority,
+                        duration: duration.map(|ms| chrono::Duration::milliseconds(ms as _)),
+                        image: Arc::new(raw_image),
+                    },
+                )?;
             }
 
             HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
@@ -98,32 +107,40 @@ impl ClientConnection {
 
                 // Request priority information
                 let (sender, receiver) = tokio::sync::oneshot::channel();
-                self.source.send(InputMessageData::PrioritiesRequest {
-                    response: Arc::new(std::sync::Mutex::new(Some(sender))),
-                })?;
+                self.source.send(
+                    ComponentName::All,
+                    InputMessageData::PrioritiesRequest {
+                        response: Arc::new(std::sync::Mutex::new(Some(sender))),
+                    },
+                )?;
 
                 // Receive priority information
-                let priorities = receiver
-                    .await?
-                    .into_iter()
-                    .map(message::PriorityInfo::from)
-                    .collect();
+                let priorities = receiver.await?.into_iter().collect();
 
                 // Just answer the serverinfo request, no need to update state
-                return Ok(Some(HyperionResponse::server_info(
-                    request.tan,
-                    vec![],
-                    priorities,
+
+                return Ok(Some(
                     global
                         .read_config(|config| {
-                            config
+                            let instances = config
                                 .instances
                                 .iter()
                                 .map(|instance_config| (&instance_config.1.instance).into())
-                                .collect()
+                                .collect();
+
+                            HyperionResponse::server_info(
+                                request.tan,
+                                // TODO: Priorities only for current instance
+                                priorities,
+                                // TODO: Fill adjustments
+                                vec![],
+                                // TODO: Fill effects
+                                vec![],
+                                instances,
+                            )
                         })
                         .await,
-                )));
+                ));
             }
 
             HyperionCommand::Authorize(message::Authorize { subcommand, .. }) => match subcommand {

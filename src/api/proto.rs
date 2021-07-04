@@ -4,6 +4,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
+    component::ComponentName,
     global::{InputMessage, InputMessageData, InputSourceHandle},
     image::{RawImage, RawImageError},
     models::Color,
@@ -31,7 +32,7 @@ pub fn handle_request(
     match request.command() {
         message::hyperion_request::Command::Clearall => {
             // Update state
-            source.send(InputMessageData::ClearAll)?;
+            source.send(ComponentName::ProtoServer, InputMessageData::ClearAll)?;
         }
 
         message::hyperion_request::Command::Clear => {
@@ -40,9 +41,12 @@ pub fn handle_request(
                 .ok_or_else(|| ProtoApiError::MissingCommand)?;
 
             // Update state
-            source.send(InputMessageData::Clear {
-                priority: clear_request.priority,
-            })?;
+            source.send(
+                ComponentName::ProtoServer,
+                InputMessageData::Clear {
+                    priority: clear_request.priority,
+                },
+            )?;
         }
 
         message::hyperion_request::Command::Color => {
@@ -58,11 +62,14 @@ pub fn handle_request(
             );
 
             // Update state
-            source.send(InputMessageData::SolidColor {
-                priority: color_request.priority,
-                duration: i32_to_duration(color_request.duration),
-                color: Color::from_components(color),
-            })?;
+            source.send(
+                ComponentName::ProtoServer,
+                InputMessageData::SolidColor {
+                    priority: color_request.priority,
+                    duration: i32_to_duration(color_request.duration),
+                    color: Color::from_components(color),
+                },
+            )?;
         }
 
         message::hyperion_request::Command::Image => {
@@ -77,11 +84,14 @@ pub fn handle_request(
             let raw_image = RawImage::try_from((image_request.imagedata.to_vec(), width, height))?;
 
             // Update state
-            source.send(InputMessageData::Image {
-                priority: image_request.priority,
-                duration: i32_to_duration(image_request.duration),
-                image: Arc::new(raw_image),
-            })?;
+            source.send(
+                ComponentName::ProtoServer,
+                InputMessageData::Image {
+                    priority: image_request.priority,
+                    duration: i32_to_duration(image_request.duration),
+                    image: Arc::new(raw_image),
+                },
+            )?;
         }
     }
 

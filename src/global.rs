@@ -15,12 +15,16 @@ pub use input_source::*;
 mod muxed_message;
 pub use muxed_message::*;
 
-use crate::models::Config;
+use crate::{component::ComponentName, models::Config};
 
 pub trait Message: Sized {
     type Data;
 
-    fn new(source_id: usize, data: Self::Data) -> Self;
+    fn new(source_id: usize, component: ComponentName, data: Self::Data) -> Self;
+
+    fn source_id(&self) -> usize;
+
+    fn component(&self) -> ComponentName;
 
     fn data(&self) -> &Self::Data;
 
@@ -89,6 +93,14 @@ impl Global {
     pub async fn read_config<T>(&self, f: impl FnOnce(&Config) -> T) -> T {
         let data = self.0.read().await;
         f(&data.config)
+    }
+
+    pub async fn read_input_sources<T>(
+        &self,
+        f: impl FnOnce(&HashMap<usize, Arc<InputSource<InputMessage>>>) -> T,
+    ) -> T {
+        let data = self.0.read().await;
+        f(&data.input_sources)
     }
 }
 

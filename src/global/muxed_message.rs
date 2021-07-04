@@ -1,19 +1,32 @@
 use std::sync::Arc;
 
 use super::{InputMessageData, Message};
-use crate::{image::RawImage, models::Color};
+use crate::{component::ComponentName, image::RawImage, models::Color};
 
 #[derive(Debug, Clone)]
 pub struct MuxedMessage {
     source_id: usize,
+    component: ComponentName,
     data: MuxedMessageData,
 }
 
 impl Message for MuxedMessage {
     type Data = MuxedMessageData;
 
-    fn new(source_id: usize, data: Self::Data) -> Self {
-        Self { source_id, data }
+    fn new(source_id: usize, component: ComponentName, data: Self::Data) -> Self {
+        Self {
+            source_id,
+            component,
+            data,
+        }
+    }
+
+    fn source_id(&self) -> usize {
+        self.source_id
+    }
+
+    fn component(&self) -> ComponentName {
+        self.component
     }
 
     fn data(&self) -> &Self::Data {
