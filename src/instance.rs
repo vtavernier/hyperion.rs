@@ -4,6 +4,7 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio::{select, sync::mpsc};
 
+use crate::models::Color;
 use crate::{
     global::{Global, InputMessage},
     models::InstanceConfig,
@@ -36,43 +37,56 @@ pub enum InstanceError {
 }
 
 pub struct Instance {
-    device: Device,
+    device: InstanceDevice,
     receiver: broadcast::Receiver<InputMessage>,
     local_receiver: mpsc::Receiver<InputMessage>,
     muxer: PriorityMuxer,
     core: Core,
-    _boblight_server: ServerHandle,
+    _boblight_server: Result<ServerHandle, std::io::Error>,
 }
 
 impl Instance {
-    pub async fn new(global: Global, config: InstanceConfig) -> Result<Self, InstanceError> {
-        let device = Device::new(&config.instance.friendly_name, config.device.clone()).await?;
+    pub async fn new(global: Global, config: InstanceConfig) -> Self {
+        let device: InstanceDevice =
+            Device::new(&config.instance.friendly_name, config.device.clone())
+                .await
+                .into();
+
+        if let Err(error) = &device.inner {
+            error!(
+                "Initializing instance {} `{}` failed: {}",
+                config.instance.id, config.instance.friendly_name, error
+            );
+        }
+
         let receiver = global.subscribe_input().await;
         let (tx, local_receiver) = mpsc::channel(4);
 
         let muxer = PriorityMuxer::new(global.clone()).await;
         let core = Core::new(&config).await;
+
+        let config = Arc::new(config);
         let _boblight_server = servers::bind(
             "Boblight",
             config.boblight_server.clone(),
             global.clone(),
             {
-                let instance = Arc::new(config);
+                let instance = config.clone();
                 move |tcp, global| {
                     servers::boblight::handle_client(tcp, tx.clone(), instance.clone(), global)
                 }
             },
         )
-        .await?;
+        .await;
 
-        Ok(Self {
+        Self {
             device,
             receiver,
             local_receiver,
             muxer,
             core,
             _boblight_server,
-        })
+        }
     }
 
     async fn on_input_message(&mut self, message: InputMessage) {
@@ -87,6 +101,7 @@ impl Instance {
             select! {
                 _ = self.device.update() => {
                     // Device update completed
+                    // TODO: Handle device update errors
                 },
                 message = self.receiver.recv() => {
                     match message {
@@ -121,5 +136,35 @@ impl Instance {
                 },
             }
         }
+    }
+}
+
+/// A wrapper for a device that may have failed initializing
+struct InstanceDevice {
+    inner: Result<Device, DeviceError>,
+}
+
+impl InstanceDevice {
+    async fn update(&mut self) -> Result<(), DeviceError> {
+        if let Ok(device) = &mut self.inner {
+            device.update().await
+        } else {
+            futures::future::pending::<()>().await;
+            Ok(())
+        }
+    }
+
+    async fn set_led_data(&mut self, led_data: &[Color]) -> Result<(), DeviceError> {
+        if let Ok(device) = &mut self.inner {
+            device.set_led_data(led_data).await
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl From<Result<Device, DeviceError>> for InstanceDevice {
+    fn from(inner: Result<Device, DeviceError>) -> Self {
+        Self { inner }
     }
 }
