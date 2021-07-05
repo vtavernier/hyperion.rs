@@ -42,7 +42,15 @@ impl PriorityInfo {
         visible: bool,
     ) -> Self {
         let duration_ms = expires
-            .and_then(|when| chrono::Duration::from_std(std::time::Instant::now() - when).ok())
+            .and_then(|when| {
+                let now = std::time::Instant::now();
+
+                if when > now {
+                    chrono::Duration::from_std(when - now).ok()
+                } else {
+                    Some(chrono::Duration::zero())
+                }
+            })
             .map(|d| d.num_milliseconds() as i64)
             .unwrap_or(-1);
         let active = duration_ms >= -1;
