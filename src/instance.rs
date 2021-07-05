@@ -10,7 +10,7 @@ use crate::{
     global::Global,
     image::RawImage,
     models::{Color, Color16, DeviceConfig, InstanceConfig},
-    servers::ServerHandle,
+    servers::{self, ServerHandle},
 };
 
 mod black_border_detector;
@@ -27,6 +27,8 @@ use smoothing::*;
 
 #[derive(Debug, Error)]
 pub enum InstanceError {
+    #[error("i/o error: {0}")]
+    Io(#[from] std::io::Error),
     #[error("device error: {0}")]
     Device(#[from] DeviceError),
     #[error("recv error: {0}")]
@@ -59,22 +61,18 @@ impl Instance {
 
         let config = Arc::new(config);
 
-        let _boblight_server = ServerHandle::spawn(
+        let _boblight_server = servers::bind(
             "Boblight",
             config.boblight_server.clone(),
             global.clone(),
             {
                 let instance = config.clone();
                 move |tcp, global| {
-                    crate::servers::boblight::handle_client(
-                        tcp,
-                        tx.clone(),
-                        instance.clone(),
-                        global,
-                    )
+                    servers::boblight::handle_client(tcp, tx.clone(), instance.clone(), global)
                 }
             },
-        );
+        )
+        .await?;
 
         Ok(Self {
             config,

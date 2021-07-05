@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate log;
 
-use hyperion::servers::ServerHandle;
 use structopt::StructOpt;
 use tokio::runtime::Builder;
 use tokio::signal;
@@ -82,32 +81,39 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
 
     // Start the Flatbuffers servers
     let _flatbuffers_server = if config.global.flatbuffers_server.enable {
-        Some(ServerHandle::spawn(
-            "Flatbuffers",
-            config.global.flatbuffers_server.clone(),
-            global.clone(),
-            hyperion::servers::flat::handle_client,
-        ))
+        Some(
+            hyperion::servers::bind(
+                "Flatbuffers",
+                config.global.flatbuffers_server.clone(),
+                global.clone(),
+                hyperion::servers::flat::handle_client,
+            )
+            .await?,
+        )
     } else {
         None
     };
 
     // Start the JSON server
-    let _json_server = ServerHandle::spawn(
+    let _json_server = hyperion::servers::bind(
         "JSON",
         config.global.json_server.clone(),
         global.clone(),
         hyperion::servers::json::handle_client,
-    );
+    )
+    .await?;
 
     // Start the Protobuf server
     let _proto_server = if config.global.proto_server.enable {
-        Some(ServerHandle::spawn(
-            "Protobuf",
-            config.global.proto_server.clone(),
-            global.clone(),
-            hyperion::servers::proto::handle_client,
-        ))
+        Some(
+            hyperion::servers::bind(
+                "Protobuf",
+                config.global.proto_server.clone(),
+                global.clone(),
+                hyperion::servers::proto::handle_client,
+            )
+            .await?,
+        )
     } else {
         None
     };
