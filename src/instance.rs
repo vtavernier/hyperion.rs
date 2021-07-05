@@ -42,7 +42,7 @@ pub struct Instance {
     local_receiver: mpsc::Receiver<InputMessage>,
     muxer: PriorityMuxer,
     core: Core,
-    _boblight_server: Result<ServerHandle, std::io::Error>,
+    _boblight_server: Option<Result<ServerHandle, std::io::Error>>,
 }
 
 impl Instance {
@@ -66,18 +66,31 @@ impl Instance {
         let core = Core::new(&config).await;
 
         let config = Arc::new(config);
-        let _boblight_server = servers::bind(
-            "Boblight",
-            config.boblight_server.clone(),
-            global.clone(),
-            {
-                let instance = config.clone();
-                move |tcp, global| {
-                    servers::boblight::handle_client(tcp, tx.clone(), instance.clone(), global)
-                }
-            },
-        )
-        .await;
+        let _boblight_server = if config.boblight_server.enable {
+            let server_handle = servers::bind(
+                "Boblight",
+                config.boblight_server.clone(),
+                global.clone(),
+                {
+                    let instance = config.clone();
+                    move |tcp, global| {
+                        servers::boblight::handle_client(tcp, tx.clone(), instance.clone(), global)
+                    }
+                },
+            )
+            .await;
+
+            if let Err(error) = &server_handle {
+                error!(
+                    "Cannot start Boblight server for instance {} `{}` failed: {}",
+                    config.instance.id, config.instance.friendly_name, error
+                );
+            }
+
+            Some(server_handle)
+        } else {
+            None
+        };
 
         Self {
             device,
