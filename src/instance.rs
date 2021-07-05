@@ -65,7 +65,7 @@ impl Instance {
         }
 
         let receiver = global.subscribe_input().await;
-        let (tx, local_receiver) = mpsc::channel(4);
+        let (local_tx, local_receiver) = mpsc::channel(4);
 
         let muxer = PriorityMuxer::new(global.clone()).await;
         let core = Core::new(&config).await;
@@ -78,8 +78,10 @@ impl Instance {
                 global.clone(),
                 {
                     let instance = config.clone();
+                    let local_tx = local_tx.clone();
+
                     move |tcp, global| {
-                        servers::boblight::handle_client(tcp, tx.clone(), instance.clone(), global)
+                        servers::boblight::handle_client(tcp, local_tx.clone(), instance.clone(), global)
                     }
                 },
             )
@@ -111,7 +113,7 @@ impl Instance {
                 core,
                 _boblight_server,
             },
-            InstanceHandle { id, tx },
+            InstanceHandle { id, tx, local_tx },
         )
     }
 
@@ -225,6 +227,7 @@ enum InstanceMessage {
 pub struct InstanceHandle {
     id: i32,
     tx: mpsc::Sender<InstanceMessage>,
+    local_tx: mpsc::Sender<InputMessage>,
 }
 
 impl InstanceHandle {
@@ -240,6 +243,7 @@ impl InstanceHandle {
             .send(InstanceMessage::PriorityInfo(tx))
             .await
             .unwrap();
+
         // unwrap: if the previous didn't fail, the instance will be there to answer
         rx.await.unwrap()
     }

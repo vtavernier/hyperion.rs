@@ -83,6 +83,16 @@ impl Global {
         self.0.read().await.instances.get(&id).cloned()
     }
 
+    pub async fn default_instance(&self) -> Option<(i32, InstanceHandle)> {
+        self.0
+            .read()
+            .await
+            .instances
+            .iter()
+            .next()
+            .map(|(k, v)| (*k, v.clone()))
+    }
+
     pub async fn read_config<T>(&self, f: impl FnOnce(&Config) -> T) -> T {
         let data = self.0.read().await;
         f(&data.config)

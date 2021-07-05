@@ -36,7 +36,7 @@ pub async fn handle_client(
     let (mut writer, mut reader) = framed.split();
 
     // unwrap: cannot fail because the priority is None
-    let client_connection = json::ClientConnection::new(
+    let mut client_connection = json::ClientConnection::new(
         global
             .register_input_source(InputSourceName::Json { peer_addr }, None)
             .await

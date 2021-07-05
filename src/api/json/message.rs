@@ -230,8 +230,8 @@ pub enum InstanceCommand {
 #[derive(Debug, Deserialize, Validate)]
 pub struct Instance {
     pub subcommand: InstanceCommand,
-    #[validate(range(max = 255))]
-    pub instance: Option<u32>,
+    #[validate(range(min = 0, max = 255))]
+    pub instance: Option<i32>,
     #[validate(length(min = 5))]
     pub name: Option<String>,
 }
@@ -675,6 +675,12 @@ pub enum HyperionResponseInfo {
     /// SysInfo response
     #[serde(rename = "sysinfo")]
     SysInfo(SysInfo),
+    /// SwitchTo response
+    #[serde(rename = "instance-switchTo")]
+    SwitchTo {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        instance: Option<i32>,
+    },
 }
 
 impl HyperionResponse {
@@ -698,12 +704,26 @@ impl HyperionResponse {
     }
 
     /// Return an error response
-    pub fn error(tan: Option<i32>, error: &impl std::fmt::Display) -> Self {
+    pub fn error(tan: Option<i32>, error: impl std::fmt::Display) -> Self {
         Self {
             success: false,
             tan,
             error: Some(error.to_string()),
             info: None,
+        }
+    }
+
+    /// Return an error response
+    pub fn error_info(
+        tan: Option<i32>,
+        error: impl std::fmt::Display,
+        info: HyperionResponseInfo,
+    ) -> Self {
+        Self {
+            success: false,
+            tan,
+            error: Some(error.to_string()),
+            info: Some(info),
         }
     }
 
@@ -740,6 +760,19 @@ impl HyperionResponse {
     pub fn sys_info(tan: Option<i32>, id: uuid::Uuid) -> Self {
         // TODO: Properly fill out this response
         Self::success_info(tan, HyperionResponseInfo::SysInfo(SysInfo::new(id)))
+    }
+
+    pub fn switch_to(tan: Option<i32>, id: Option<i32>) -> Self {
+        if let Some(id) = id {
+            // Switch successful
+            Self::success_info(tan, HyperionResponseInfo::SwitchTo { instance: Some(id) })
+        } else {
+            Self::error_info(
+                tan,
+                "selected hyperion instance not found",
+                HyperionResponseInfo::SwitchTo { instance: None },
+            )
+        }
     }
 }
 

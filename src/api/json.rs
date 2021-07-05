@@ -8,6 +8,7 @@ use crate::{
     component::ComponentName,
     global::{Global, InputMessage, InputMessageData, InputSourceHandle},
     image::{RawImage, RawImageError},
+    instance::InstanceHandle,
 };
 
 /// Schema definitions as Serde serializable structures and enums
@@ -31,15 +32,42 @@ pub enum JsonApiError {
 /// A client connected to the JSON endpoint
 pub struct ClientConnection {
     source: InputSourceHandle<InputMessage>,
+    current_instance: Option<i32>,
 }
 
 impl ClientConnection {
     pub fn new(source: InputSourceHandle<InputMessage>) -> Self {
-        Self { source }
+        Self {
+            source,
+            current_instance: None,
+        }
+    }
+
+    async fn current_instance(&mut self, global: &Global) -> Option<InstanceHandle> {
+        if let Some(current_instance) = self.current_instance {
+            if let Some(instance) = global.get_instance(current_instance).await {
+                return Some(instance);
+            } else {
+                // Instance id now invalid, reset
+                self.current_instance = None;
+            }
+        }
+
+        if let Some((id, inst)) = global.default_instance().await {
+            self.set_current_instance(id);
+            return Some(inst);
+        }
+
+        None
+    }
+
+    fn set_current_instance(&mut self, id: i32) {
+        debug!("{}: switch to instance {}", &self.source.name(), id);
+        self.current_instance = Some(id);
     }
 
     pub async fn handle_request(
-        &self,
+        &mut self,
         request: HyperionMessage,
         global: &Global,
     ) -> Result<Option<HyperionResponse>, JsonApiError> {
@@ -105,6 +133,12 @@ impl ClientConnection {
             HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
                 // TODO: Handle subscribe field
 
+                let priorities = if let Some(handle) = self.current_instance(global).await {
+                    handle.current_priorities().await
+                } else {
+                    vec![]
+                };
+
                 // Just answer the serverinfo request, no need to update state
                 return Ok(Some(
                     global
@@ -117,8 +151,7 @@ impl ClientConnection {
 
                             HyperionResponse::server_info(
                                 request.tan,
-                                // TODO: Priorities only for current instance
-                                vec![],
+                                priorities,
                                 // TODO: Fill adjustments
                                 vec![],
                                 // TODO: Fill effects
@@ -145,6 +178,21 @@ impl ClientConnection {
                     request.tan,
                     global.read_config(|config| config.uuid()).await,
                 )));
+            }
+
+            HyperionCommand::Instance(message::Instance {
+                subcommand: message::InstanceCommand::SwitchTo,
+                instance: Some(id),
+                ..
+            }) => {
+                if global.get_instance(id).await.is_some() {
+                    self.set_current_instance(id);
+                    return Ok(Some(HyperionResponse::switch_to(request.tan, Some(id))));
+                } else {
+                    // Note: it's an "Ok" but should be an Err. Find out how to represent errors
+                    // better
+                    return Ok(Some(HyperionResponse::switch_to(request.tan, None)));
+                }
             }
 
             _ => return Err(JsonApiError::NotImplemented),
