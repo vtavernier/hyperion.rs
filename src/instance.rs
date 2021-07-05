@@ -9,7 +9,7 @@ use crate::{
     color::{color_to16, ChannelAdjustments, ChannelAdjustmentsBuilder},
     global::Global,
     image::RawImage,
-    models::{Color, Color16, DeviceConfig, InstanceConfig},
+    models::{Color, Color16, InstanceConfig},
     servers::{self, ServerHandle},
 };
 
@@ -49,7 +49,7 @@ pub struct Instance {
 impl Instance {
     pub async fn new(global: Global, config: InstanceConfig) -> Result<Self, InstanceError> {
         let device = Device::new(&config.instance.friendly_name, config.device.clone()).await?;
-        let led_count = config.device.hardware_led_count();
+        let led_count = config.leds.leds.len();
         let black_border_detector = BlackBorderDetector::new(config.black_border_detector.clone());
         let channel_adjustments = ChannelAdjustmentsBuilder::new()
             .adjustments(config.color.channel_adjustment.iter())

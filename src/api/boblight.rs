@@ -5,7 +5,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::{
     global::{InputMessage, InputMessageData, InputSourceHandle, Message},
-    models::{Color, DeviceConfig, InstanceConfig},
+    models::{Color, InstanceConfig},
 };
 
 pub mod message;
@@ -35,7 +35,7 @@ impl ClientConnection {
     ) -> Self {
         Self {
             handle,
-            led_colors: vec![Color::default(); instance.device.hardware_led_count()],
+            led_colors: vec![Color::default(); instance.leds.leds.len()],
             priority: 128,
             tx,
             instance,

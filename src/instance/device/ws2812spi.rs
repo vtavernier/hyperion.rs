@@ -64,12 +64,6 @@ impl Ws2812SpiDevice {
 #[async_trait]
 impl DeviceImpl for Ws2812SpiDevice {
     async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError> {
-        // Check led data
-        let led_count = self.config.hardware_led_count as usize;
-        if led_data.len() != led_count {
-            return Err(DeviceError::InvalidLedData);
-        }
-
         // Update buffer
         let mut ptr = 0;
         for led in led_data {

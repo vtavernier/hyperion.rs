@@ -3,6 +3,8 @@ use thiserror::Error;
 
 use crate::models::{self, DeviceConfig};
 
+// Device implementation modules
+
 mod dummy;
 mod ws2812spi;
 
@@ -10,27 +12,34 @@ mod ws2812spi;
 pub enum DeviceError {
     #[error("device not supported: {0}")]
     NotSupported(&'static str),
-    #[error("invalid led data")]
-    InvalidLedData,
     #[error("i/o error: {0}")]
     FuturesIo(#[from] futures_io::Error),
 }
 
 #[async_trait]
-pub trait DeviceImpl: Send {
+trait DeviceImpl: Send {
+    /// Set the device implementation's view of the LED data to the given values
+    ///
+    /// # Panics
+    ///
+    /// Implementations are allowed to panic if led_data.len() != hardware_led_count. The [Device]
+    /// wrapper is responsible for ensuring the given slice is the right size.
     async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError>;
+
+    /// Update the device implementation's temporal data. For devices that require regular rewrites
+    /// (regardless of actual changes in the LED data), this should return a future that performs
+    /// the required work.
     async fn update(&mut self) -> Result<(), DeviceError>;
 }
 
 pub struct Device {
     inner: Box<dyn DeviceImpl>,
     led_data: Vec<models::Color>,
+    notified_inconsistent_led_data: bool,
 }
 
 impl Device {
-    pub async fn new(name: &str, config: models::Device) -> Result<Self, DeviceError> {
-        let led_count = config.hardware_led_count();
-
+    fn build_inner(name: &str, config: models::Device) -> Result<Box<dyn DeviceImpl>, DeviceError> {
         let inner: Box<dyn DeviceImpl>;
         match config {
             models::Device::Dummy(dummy) => {
@@ -42,21 +51,57 @@ impl Device {
             other => {
                 return Err(DeviceError::NotSupported(other.into()));
             }
-        };
+        }
+
+        Ok(inner)
+    }
+
+    pub async fn new(name: &str, config: models::Device) -> Result<Self, DeviceError> {
+        let led_count = config.hardware_led_count();
+        let inner = Self::build_inner(name, config)?;
 
         Ok(Self {
             inner,
             led_data: vec![Default::default(); led_count],
+            notified_inconsistent_led_data: false,
         })
     }
 
     pub async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError> {
-        if led_data.len() != self.led_data.len() {
-            return Err(DeviceError::InvalidLedData);
-        }
-
         // Store the LED data for updates
-        self.led_data.copy_from_slice(led_data);
+        let led_count = led_data.len();
+        let hw_led_count = self.led_data.len();
+
+        if led_count == hw_led_count {
+            self.led_data.copy_from_slice(led_data);
+            self.notified_inconsistent_led_data = false;
+        } else if led_count > hw_led_count {
+            // Too much data in led_data
+            // Take only the slice that fits
+            self.led_data.copy_from_slice(&led_data[..hw_led_count]);
+
+            if !self.notified_inconsistent_led_data {
+                self.notified_inconsistent_led_data = true;
+                warn!(
+                    "too much LED data for device: {} extra",
+                    led_count - hw_led_count
+                );
+            }
+        } else {
+            // Not enough data
+            // Take the given data
+            self.led_data[..led_count].copy_from_slice(led_data);
+            // And pad with zeros
+            self.led_data[led_count..].fill(Default::default());
+
+            if !self.notified_inconsistent_led_data {
+                self.notified_inconsistent_led_data = true;
+                warn!(
+                    "not enough LED data for device: {} missing",
+                    hw_led_count - led_count
+                );
+            }
+        }
 
         // Notify device of new write: some devices write immediately
         self.inner.set_led_data(&self.led_data).await

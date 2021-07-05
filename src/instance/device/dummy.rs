@@ -5,25 +5,17 @@ use crate::models;
 
 pub struct DummyDevice {
     name: String,
-    led_count: usize,
 }
 
 impl DummyDevice {
-    pub fn new(name: String, config: models::Dummy) -> Self {
-        Self {
-            name,
-            led_count: config.hardware_led_count as _,
-        }
+    pub fn new(name: String, _config: models::Dummy) -> Self {
+        Self { name }
     }
 }
 
 #[async_trait]
 impl DeviceImpl for DummyDevice {
     async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError> {
-        if led_data.len() != self.led_count {
-            return Err(DeviceError::InvalidLedData);
-        }
-
         // Write to log when we get new data
         for (i, led) in led_data.iter().enumerate() {
             info!(
