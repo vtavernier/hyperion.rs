@@ -31,8 +31,6 @@ pub enum InstanceError {
     Device(#[from] DeviceError),
     #[error("recv error: {0}")]
     Recv(#[from] broadcast::error::RecvError),
-    #[error("command not supported: {0:?}")]
-    NotSupported(MuxedMessageData),
 }
 
 pub struct Instance {
