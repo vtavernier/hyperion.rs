@@ -4,14 +4,13 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::broadcast;
 
-use crate::api::types::PriorityInfo;
-use crate::color::color_to16;
-use crate::models::Color;
 use crate::{
-    color::{ChannelAdjustments, ChannelAdjustmentsBuilder},
+    api::types::PriorityInfo,
+    color::{color_to16, ChannelAdjustments, ChannelAdjustmentsBuilder},
     global::Global,
     image::RawImage,
-    models::{self, DeviceConfig, InstanceConfig},
+    models::{Color, Color16, DeviceConfig, InstanceConfig},
+    servers::ServerHandle,
 };
 
 mod black_border_detector;
@@ -40,10 +39,11 @@ pub struct Instance {
     config: Arc<InstanceConfig>,
     device: Device,
     muxer: PriorityMuxer,
-    color_data: Vec<models::Color16>,
+    color_data: Vec<Color16>,
     black_border_detector: BlackBorderDetector,
     channel_adjustments: ChannelAdjustments,
     smoothing: Smoothing,
+    _boblight_server: ServerHandle,
 }
 
 impl Instance {
@@ -61,40 +61,36 @@ impl Instance {
 
         let config = Arc::new(config);
 
-        // TODO: Terminate BoblightServer on Instance drop?
-        tokio::spawn({
-            let instance = config.clone();
-            let config = instance.boblight_server.clone();
-
-            async move {
-                let result = crate::servers::bind(config, global, move |tcp, global| {
+        let _boblight_server = ServerHandle::spawn(
+            "Boblight",
+            config.boblight_server.clone(),
+            global.clone(),
+            {
+                let instance = config.clone();
+                move |tcp, global| {
                     crate::servers::boblight::handle_client(
                         tcp,
                         tx.clone(),
                         instance.clone(),
                         global,
                     )
-                })
-                .await;
-
-                if let Err(error) = result {
-                    error!("Boblight server terminated: {:?}", error);
                 }
-            }
-        });
+            },
+        );
 
         Ok(Self {
             config,
             device,
             muxer,
-            color_data: vec![models::Color16::default(); led_count],
+            color_data: vec![Color16::default(); led_count],
             black_border_detector,
             channel_adjustments,
             smoothing,
+            _boblight_server,
         })
     }
 
-    fn handle_color(&mut self, color: models::Color) {
+    fn handle_color(&mut self, color: Color) {
         let color = crate::color::color_to16(color);
         self.color_data.iter_mut().map(|x| *x = color).count();
     }
@@ -150,7 +146,7 @@ impl Instance {
                 }
             }
 
-            *value = models::Color16::from_components((
+            *value = Color16::from_components((
                 (r_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,
                 (g_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,
                 (b_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,

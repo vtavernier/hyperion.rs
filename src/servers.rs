@@ -1,6 +1,9 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    task::JoinHandle,
+};
 
 use crate::{global::Global, models::ServerConfig};
 
@@ -9,7 +12,7 @@ pub mod flat;
 pub mod json;
 pub mod proto;
 
-pub async fn bind<T, E, F>(
+async fn bind<T, E, F>(
     options: T,
     global: Global,
     handle_client: impl Fn((TcpStream, SocketAddr), Global) -> F,
@@ -47,5 +50,40 @@ where
                 }
             }
         });
+    }
+}
+
+pub struct ServerHandle {
+    join_handle: JoinHandle<()>,
+}
+
+impl ServerHandle {
+    pub fn spawn<T, E, F, H>(
+        name: &'static str,
+        options: T,
+        global: Global,
+        handle_client: H,
+    ) -> Self
+    where
+        T: ServerConfig + Send + 'static,
+        F: futures::Future<Output = Result<(), E>> + Send + 'static,
+        E: From<std::io::Error> + std::fmt::Display + Send + 'static,
+        H: Fn((TcpStream, SocketAddr), Global) -> F + Send + 'static,
+    {
+        Self {
+            join_handle: tokio::spawn(async move {
+                let result = bind(options, global, handle_client).await;
+
+                if let Err(error) = result {
+                    error!("{} server terminated: {}", name, error);
+                }
+            }),
+        }
+    }
+}
+
+impl Drop for ServerHandle {
+    fn drop(&mut self) {
+        self.join_handle.abort();
     }
 }

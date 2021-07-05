@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use hyperion::servers::ServerHandle;
 use structopt::StructOpt;
 use tokio::runtime::Builder;
 use tokio::signal;
@@ -79,60 +80,37 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
         });
     }
 
-    // Start the flatbuffers servers
-    if config.global.flatbuffers_server.enable {
-        tokio::spawn({
-            let global = global.clone();
-            let config = config.global.flatbuffers_server.clone();
-
-            async move {
-                let result =
-                    hyperion::servers::bind(config, global, hyperion::servers::flat::handle_client)
-                        .await;
-
-                if let Err(error) = result {
-                    error!("Flatbuffers server terminated: {:?}", error);
-                }
-            }
-        });
-    }
+    // Start the Flatbuffers servers
+    let _flatbuffers_server = if config.global.flatbuffers_server.enable {
+        Some(ServerHandle::spawn(
+            "Flatbuffers",
+            config.global.flatbuffers_server.clone(),
+            global.clone(),
+            hyperion::servers::flat::handle_client,
+        ))
+    } else {
+        None
+    };
 
     // Start the JSON server
-    tokio::spawn({
-        let global = global.clone();
-        let config = config.global.json_server.clone();
-
-        async move {
-            let result =
-                hyperion::servers::bind(config, global, hyperion::servers::json::handle_client)
-                    .await;
-
-            if let Err(error) = result {
-                error!("JSON server terminated: {:?}", error);
-            }
-        }
-    });
+    let _json_server = ServerHandle::spawn(
+        "JSON",
+        config.global.json_server.clone(),
+        global.clone(),
+        hyperion::servers::json::handle_client,
+    );
 
     // Start the Protobuf server
-    if config.global.proto_server.enable {
-        tokio::spawn({
-            let global = global.clone();
-            let config = config.global.proto_server.clone();
-
-            async move {
-                let result = hyperion::servers::bind(
-                    config,
-                    global,
-                    hyperion::servers::proto::handle_client,
-                )
-                .await;
-
-                if let Err(error) = result {
-                    error!("Protobuf server terminated: {:?}", error);
-                }
-            }
-        });
-    }
+    let _proto_server = if config.global.proto_server.enable {
+        Some(ServerHandle::spawn(
+            "Protobuf",
+            config.global.proto_server.clone(),
+            global.clone(),
+            hyperion::servers::proto::handle_client,
+        ))
+    } else {
+        None
+    };
 
     // Should we continue running?
     let mut abort = false;
