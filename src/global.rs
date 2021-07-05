@@ -79,6 +79,10 @@ impl Global {
         self.0.write().await.register_instance(handle);
     }
 
+    pub async fn unregister_instance(&self, id: i32) {
+        self.0.write().await.unregister_instance(id);
+    }
+
     pub async fn get_instance(&self, id: i32) -> Option<InstanceHandle> {
         self.0.read().await.instances.get(&id).cloned()
     }
@@ -156,6 +160,14 @@ impl GlobalData {
     }
 
     fn register_instance(&mut self, handle: InstanceHandle) {
-        self.instances.insert(handle.id(), handle);
+        let id = handle.id();
+        self.instances.insert(id, handle);
+        info!("registered instance {}", id);
+    }
+
+    fn unregister_instance(&mut self, id: i32) {
+        if let Some(_) = self.instances.remove(&id) {
+            info!("unregistered instance {}", id);
+        }
     }
 }

@@ -32,17 +32,23 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     let global = hyperion::global::GlobalData::new(&config).wrap();
 
     // Initialize and spawn the devices
-    for (_, inst) in &config.instances {
+    for (&id, inst) in &config.instances {
         // Create the instance
         let (inst, handle) = hyperion::instance::Instance::new(global.clone(), inst.clone()).await;
         // Register the instance globally using its handle
         global.register_instance(handle).await;
         // Run the instance futures
-        tokio::spawn(async move {
-            let result = inst.run().await;
+        tokio::spawn({
+            let global = global.clone();
 
-            if let Err(error) = result {
-                error!("Instance error: {:?}", error);
+            async move {
+                let result = inst.run().await;
+
+                if let Err(error) = result {
+                    error!("Instance error: {:?}", error);
+                }
+
+                global.unregister_instance(id).await;
             }
         });
     }
