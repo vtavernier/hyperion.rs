@@ -35,7 +35,7 @@ where
     let listener = TcpListener::bind(&address).await?;
 
     // Notify we are listening
-    info!("server listening on {}", address);
+    info!("{} server listening on {}", name, address);
 
     // Spawn accepting loop
     let join_handle = tokio::spawn(async move {
