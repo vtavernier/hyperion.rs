@@ -3,74 +3,45 @@
 use std::net::SocketAddr;
 
 use futures::prelude::*;
-use prost::Message;
 use thiserror::Error;
 use tokio::net::TcpStream;
+use tokio_util::codec::Framed;
 
 use crate::{
     api::proto::{self, message, ProtoApiError},
-    global::{Global, InputMessage, InputSourceHandle, InputSourceName},
+    global::{Global, InputSourceName},
 };
+
+mod codec;
+use codec::*;
 
 #[derive(Debug, Error)]
 pub enum ProtoServerError {
     #[error("i/o error: {0}")]
     Io(#[from] futures_io::Error),
-    #[error("decode error: {}", 0)]
-    DecodeError(#[from] prost::DecodeError),
+    #[error("decode error: {0}")]
+    Codec(#[from] ProtoCodecError),
     #[error(transparent)]
     Api(#[from] ProtoApiError),
 }
 
-fn encode_response(buf: &mut bytes::BytesMut, msg: impl prost::Message) -> bytes::Bytes {
-    // Clear the buffer to start fresh
-    buf.clear();
-
-    // Reserve enough space for the response
-    let len = msg.encoded_len();
-    if buf.capacity() < len {
-        buf.reserve(len * 2);
-    }
-
-    // Encode the message
-    msg.encode(buf).unwrap();
-    buf.split().freeze()
-}
-
-fn success_response(peer_addr: SocketAddr, buf: &mut bytes::BytesMut) -> bytes::Bytes {
+fn success_response(peer_addr: SocketAddr) -> message::HyperionReply {
     let mut reply = message::HyperionReply::default();
     reply.r#type = message::hyperion_reply::Type::Reply.into();
     reply.success = Some(true);
 
     trace!("({}) sending success: {:?}", peer_addr, reply);
-    encode_response(buf, reply)
+    reply
 }
 
-fn error_response(
-    peer_addr: SocketAddr,
-    buf: &mut bytes::BytesMut,
-    error: impl std::fmt::Display,
-) -> bytes::Bytes {
+fn error_response(peer_addr: SocketAddr, error: impl std::fmt::Display) -> message::HyperionReply {
     let mut reply = message::HyperionReply::default();
     reply.r#type = message::hyperion_reply::Type::Reply.into();
     reply.success = Some(false);
     reply.error = Some(error.to_string());
 
     trace!("({}) sending error: {:?}", peer_addr, reply);
-    encode_response(buf, reply)
-}
-
-fn handle_request(
-    peer_addr: SocketAddr,
-    request_bytes: bytes::BytesMut,
-    source: &InputSourceHandle<InputMessage>,
-) -> Result<(), ProtoServerError> {
-    let request_bytes = request_bytes.freeze();
-    let request = message::HyperionRequest::decode(request_bytes.clone())?;
-
-    trace!("({}) got request: {:?}", peer_addr, request);
-
-    Ok(proto::handle_request(request, source)?)
+    reply
 }
 
 pub async fn handle_client(
@@ -79,10 +50,7 @@ pub async fn handle_client(
 ) -> Result<(), ProtoServerError> {
     debug!("accepted new connection from {}", peer_addr);
 
-    let framed = tokio_util::codec::LengthDelimitedCodec::builder()
-        .length_field_length(4)
-        .new_framed(socket);
-    let (mut writer, mut reader) = framed.split();
+    let (mut writer, mut reader) = Framed::new(socket, ProtoCodec::new()).split();
 
     // unwrap: cannot fail because the priority is None
     let source = global
@@ -90,11 +58,8 @@ pub async fn handle_client(
         .await
         .unwrap();
 
-    // buffer for building responses
-    let mut reply_buf = bytes::BytesMut::with_capacity(128);
-
-    while let Some(request_bytes) = reader.next().await {
-        let request_bytes = match request_bytes {
+    while let Some(request) = reader.next().await {
+        let request = match request {
             Ok(rb) => rb,
             Err(error) => {
                 error!("({}) error reading frame: {}", peer_addr, error);
@@ -102,12 +67,14 @@ pub async fn handle_client(
             }
         };
 
-        let reply = match handle_request(peer_addr, request_bytes, &source) {
-            Ok(()) => success_response(peer_addr, &mut reply_buf),
+        trace!("({}) got request: {:?}", peer_addr, request);
+
+        let reply = match proto::handle_request(request, &source) {
+            Ok(()) => success_response(peer_addr),
             Err(error) => {
                 error!("({}) error processing request: {}", peer_addr, error);
 
-                error_response(peer_addr, &mut reply_buf, error)
+                error_response(peer_addr, error)
             }
         };
 
