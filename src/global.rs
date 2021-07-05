@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ pub use input_message::*;
 mod input_source;
 pub use input_source::*;
 
-use crate::{component::ComponentName, models::Config};
+use crate::{component::ComponentName, instance::InstanceHandle, models::Config};
 
 pub trait Message: Sized {
     type Data;
@@ -75,6 +75,14 @@ impl Global {
         self.0.read().await.input_tx.subscribe()
     }
 
+    pub async fn register_instance(&self, handle: InstanceHandle) {
+        self.0.write().await.register_instance(handle);
+    }
+
+    pub async fn get_instance(&self, id: i32) -> Option<InstanceHandle> {
+        self.0.read().await.instances.get(&id).cloned()
+    }
+
     pub async fn read_config<T>(&self, f: impl FnOnce(&Config) -> T) -> T {
         let data = self.0.read().await;
         f(&data.config)
@@ -94,6 +102,7 @@ pub struct GlobalData {
     input_sources: HashMap<usize, Arc<InputSource<InputMessage>>>,
     next_input_source_id: usize,
     config: Config,
+    instances: BTreeMap<i32, InstanceHandle>,
 }
 
 impl GlobalData {
@@ -105,6 +114,7 @@ impl GlobalData {
             input_sources: Default::default(),
             next_input_source_id: 1,
             config: config.clone(),
+            instances: Default::default(),
         }
     }
 
@@ -133,5 +143,9 @@ impl GlobalData {
         if let Some(is) = self.input_sources.remove(&source.id()) {
             info!("unregistered input source {}", *is);
         }
+    }
+
+    fn register_instance(&mut self, handle: InstanceHandle) {
+        self.instances.insert(handle.id(), handle);
     }
 }

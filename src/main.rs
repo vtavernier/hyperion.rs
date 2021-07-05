@@ -33,7 +33,11 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
 
     // Initialize and spawn the devices
     for (_, inst) in &config.instances {
-        let inst = hyperion::instance::Instance::new(global.clone(), inst.clone()).await;
+        // Create the instance
+        let (inst, handle) = hyperion::instance::Instance::new(global.clone(), inst.clone()).await;
+        // Register the instance globally using its handle
+        global.register_instance(handle).await;
+        // Run the instance futures
         tokio::spawn(async move {
             let result = inst.run().await;
 

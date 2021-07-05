@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use thiserror::Error;
-use tokio::sync::broadcast;
-use tokio::{select, sync::mpsc};
+use tokio::{
+    select,
+    sync::{broadcast, mpsc, oneshot},
+};
 
+use crate::api::types::PriorityInfo;
 use crate::models::Color;
 use crate::{
     global::{Global, InputMessage},
@@ -37,7 +40,9 @@ pub enum InstanceError {
 }
 
 pub struct Instance {
+    config: Arc<InstanceConfig>,
     device: InstanceDevice,
+    handle_rx: mpsc::Receiver<InstanceMessage>,
     receiver: broadcast::Receiver<InputMessage>,
     local_receiver: mpsc::Receiver<InputMessage>,
     muxer: PriorityMuxer,
@@ -46,7 +51,7 @@ pub struct Instance {
 }
 
 impl Instance {
-    pub async fn new(global: Global, config: InstanceConfig) -> Self {
+    pub async fn new(global: Global, config: InstanceConfig) -> (Self, InstanceHandle) {
         let device: InstanceDevice =
             Device::new(&config.instance.friendly_name, config.device.clone())
                 .await
@@ -92,20 +97,41 @@ impl Instance {
             None
         };
 
-        Self {
-            device,
-            receiver,
-            local_receiver,
-            muxer,
-            core,
-            _boblight_server,
-        }
+        let (tx, handle_rx) = mpsc::channel(1);
+        let id = config.instance.id;
+
+        (
+            Self {
+                config,
+                device,
+                handle_rx,
+                receiver,
+                local_receiver,
+                muxer,
+                core,
+                _boblight_server,
+            },
+            InstanceHandle { id, tx },
+        )
     }
 
     async fn on_input_message(&mut self, message: InputMessage) {
         if let Some(message) = self.muxer.handle_message(message).await {
             // The message triggered a muxing update
             self.core.handle_message(message);
+        }
+    }
+
+    pub fn id(&self) -> i32 {
+        self.config.instance.id
+    }
+
+    async fn handle_instance_message(&mut self, message: InstanceMessage) {
+        match message {
+            InstanceMessage::PriorityInfo(tx) => {
+                // unwrap: the receiver should not have dropped
+                tx.send(self.muxer.current_priorities().await).unwrap();
+            }
         }
     }
 
@@ -123,7 +149,7 @@ impl Instance {
                         },
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                             // No more input messages
-                            return Ok(());
+                            break Ok(());
                         },
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                             warn!("skipped {} input messages", skipped);
@@ -147,6 +173,14 @@ impl Instance {
                     // LED data changed
                     self.device.set_led_data(led_data).await?;
                 },
+                message = self.handle_rx.recv() => {
+                    if let Some(message) = message {
+                        self.handle_instance_message(message).await;
+                    } else {
+                        // If the handle is dropped, it means the instance was unregistered
+                        break Ok(());
+                    }
+                }
             }
         }
     }
@@ -179,5 +213,34 @@ impl InstanceDevice {
 impl From<Result<Device, DeviceError>> for InstanceDevice {
     fn from(inner: Result<Device, DeviceError>) -> Self {
         Self { inner }
+    }
+}
+
+#[derive(Debug)]
+enum InstanceMessage {
+    PriorityInfo(oneshot::Sender<Vec<PriorityInfo>>),
+}
+
+#[derive(Clone)]
+pub struct InstanceHandle {
+    id: i32,
+    tx: mpsc::Sender<InstanceMessage>,
+}
+
+impl InstanceHandle {
+    pub fn id(&self) -> i32 {
+        self.id
+    }
+
+    pub async fn current_priorities(&self) -> Vec<PriorityInfo> {
+        let (tx, rx) = oneshot::channel();
+
+        // TODO: Don't unwrap and propagate?
+        self.tx
+            .send(InstanceMessage::PriorityInfo(tx))
+            .await
+            .unwrap();
+        // unwrap: if the previous didn't fail, the instance will be there to answer
+        rx.await.unwrap()
     }
 }
