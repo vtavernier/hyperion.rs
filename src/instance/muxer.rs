@@ -4,7 +4,6 @@ use std::time::Instant;
 
 use futures::Future;
 use tokio::select;
-use tokio::sync::{broadcast, mpsc};
 
 use crate::{
     api::types::PriorityInfo,
@@ -25,8 +24,6 @@ struct InputEntry {
 
 pub struct PriorityMuxer {
     global: Global,
-    receiver: broadcast::Receiver<InputMessage>,
-    local_receiver: mpsc::Receiver<InputMessage>,
     inputs: BTreeMap<i32, InputEntry>,
     input_id: usize,
     timeouts: HashMap<
@@ -39,13 +36,9 @@ const MAX_PRIORITY: i32 = 256;
 const MUXER_ID: usize = 0;
 
 impl PriorityMuxer {
-    pub async fn new(global: Global) -> (Self, mpsc::Sender<InputMessage>) {
-        let (tx, rx) = mpsc::channel(4);
-
+    pub async fn new(global: Global) -> Self {
         let mut this = Self {
-            global: global.clone(),
-            receiver: global.subscribe_input().await,
-            local_receiver: rx,
+            global,
             inputs: Default::default(),
             timeouts: Default::default(),
             input_id: 0,
@@ -54,7 +47,7 @@ impl PriorityMuxer {
         // Start by clearing all outputs
         this.clear_all().await;
 
-        (this, tx)
+        this
     }
 
     fn current_priority(&self) -> i32 {
@@ -209,7 +202,7 @@ impl PriorityMuxer {
         }
     }
 
-    async fn handle_input_recv(&mut self, input: InputMessage) -> Option<MuxedMessage> {
+    pub async fn handle_message(&mut self, input: InputMessage) -> Option<MuxedMessage> {
         trace!("got input: {:?}", input);
 
         // Check if this will change the output
@@ -244,36 +237,16 @@ impl PriorityMuxer {
             .await
     }
 
-    async fn recv(&mut self) -> Result<InputMessage, tokio::sync::broadcast::error::RecvError> {
-        select! {
-            recv = self.receiver.recv() => {
-                Ok(recv?)
-            },
-            recv = self.local_receiver.recv() => {
-                if let Some(recv) = recv {
-                    Ok(recv)
-                } else {
-                    Err(tokio::sync::broadcast::error::RecvError::Closed)
-                }
-            }
-        }
-    }
-
-    pub async fn run(
-        &mut self,
-    ) -> Result<Option<MuxedMessage>, tokio::sync::broadcast::error::RecvError> {
+    pub async fn update(&mut self) -> Option<MuxedMessage> {
         if self.timeouts.len() > 0 {
             select! {
                 id = futures::future::select_all(self.timeouts.values().map(|f| f())) => {
-                    return Ok(self.handle_timeout(id.0).await);
-                },
-                recv = self.recv() => {
-                    return Ok(self.handle_input_recv(recv?).await);
+                    return self.handle_timeout(id.0).await;
                 },
             }
         } else {
-            let recv = self.recv().await?;
-            Ok(self.handle_input_recv(recv).await)
+            futures::future::pending::<()>().await;
+            None
         }
     }
 }
