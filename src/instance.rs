@@ -141,10 +141,14 @@ impl Instance {
         loop {
             select! {
                 _ = self.device.update() => {
+                    trace!("{}: device update", self.id());
+
                     // Device update completed
                     // TODO: Handle device update errors
                 },
                 message = self.receiver.recv() => {
+                    trace!("{}: global msg: {:?}", self.id(), message);
+
                     match message {
                         Ok(message) => {
                             self.on_input_message(message).await;
@@ -159,6 +163,8 @@ impl Instance {
                     }
                 },
                 message = self.local_receiver.recv() => {
+                    trace!("{}: local msg: {:?}", self.id(), message);
+
                     if let Some(message) = message {
                         self.on_input_message(message).await;
                     } else {
@@ -166,6 +172,8 @@ impl Instance {
                     }
                 },
                 message = self.muxer.update() => {
+                    trace!("{}: muxer msg: {:?}", self.id(), message);
+
                     // Muxer update completed
                     if let Some(message) = message {
                         self.core.handle_message(message);
@@ -174,8 +182,12 @@ impl Instance {
                 led_data = self.core.update() => {
                     // LED data changed
                     self.device.set_led_data(led_data).await?;
+
+                    trace!("{}: core update", self.id());
                 },
                 message = self.handle_rx.recv() => {
+                    trace!("{}: handle_rx msg: {:?}", self.id(), message);
+
                     if let Some(message) = message {
                         self.handle_instance_message(message).await;
                     } else {
