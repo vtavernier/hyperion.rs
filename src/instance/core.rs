@@ -15,6 +15,7 @@ pub struct Core {
     black_border_detector: BlackBorderDetector,
     channel_adjustments: ChannelAdjustments,
     smoothing: Smoothing,
+    notified_inconsistent_led_data: bool,
 }
 
 impl Core {
@@ -33,12 +34,12 @@ impl Core {
             black_border_detector,
             channel_adjustments,
             smoothing,
+            notified_inconsistent_led_data: false,
         }
     }
 
     fn handle_color(&mut self, color: Color) {
-        let color = crate::color::color_to16(color);
-        self.color_data.iter_mut().map(|x| *x = color).count();
+        self.color_data.fill(color_to16(color));
     }
 
     fn handle_image(&mut self, image: &impl Image) {
@@ -92,26 +93,46 @@ impl Core {
                 }
             }
 
-            *value = Color16::from_components((
+            *value = Color16::new(
                 (r_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,
                 (g_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,
                 (b_acc / cnt.max(1)).max(0).min(u16::MAX as _) as u16,
-            ));
+            );
         }
     }
 
     fn handle_led_colors(&mut self, led_colors: &[Color]) {
-        if led_colors.len() != self.color_data.len() {
-            error!(
-                "invalid led color data, expected {} leds, got {}",
-                self.color_data.len(),
-                led_colors.len()
-            );
-        } else {
-            for (led_mut, color) in self.color_data.iter_mut().zip(led_colors.iter()) {
-                *led_mut = color_to16(*color);
+        let led_count = self.color_data.len();
+        let data_count = led_colors.len();
+
+        let (src, dst, fill) = if led_count == data_count {
+            self.notified_inconsistent_led_data = false;
+
+            let (dst, fill) = self.color_data.split_at_mut(led_count);
+            (led_colors, dst, fill)
+        } else if led_count < data_count {
+            if !self.notified_inconsistent_led_data {
+                self.notified_inconsistent_led_data = true;
+                warn!("too much LED data: {} extra", data_count - led_count);
             }
+
+            let (dst, fill) = self.color_data.split_at_mut(led_count);
+            (&led_colors[..led_count], dst, fill)
+        } else {
+            if !self.notified_inconsistent_led_data {
+                self.notified_inconsistent_led_data = true;
+                warn!("not enough LED data: {} missing", led_count - data_count);
+            }
+
+            let (dst, fill) = self.color_data.split_at_mut(data_count);
+            (led_colors, dst, fill)
+        };
+
+        for (led_mut, color) in dst.iter_mut().zip(src.iter()) {
+            *led_mut = color_to16(*color);
         }
+
+        fill.fill(Color16::default());
     }
 
     pub fn handle_message(&mut self, message: MuxedMessage) {
