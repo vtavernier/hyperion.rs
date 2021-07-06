@@ -4,6 +4,9 @@ use thiserror::Error;
 
 use crate::models::Color;
 
+mod reducer;
+pub use reducer::*;
+
 pub trait Image: Sized {
     /// Get the width of the image, in pixels
     fn width(&self) -> u32;
