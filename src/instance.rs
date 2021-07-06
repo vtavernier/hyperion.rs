@@ -81,7 +81,12 @@ impl Instance {
                     let local_tx = local_tx.clone();
 
                     move |tcp, global| {
-                        servers::boblight::handle_client(tcp, local_tx.clone(), instance.clone(), global)
+                        servers::boblight::handle_client(
+                            tcp,
+                            local_tx.clone(),
+                            instance.clone(),
+                            global,
+                        )
                     }
                 },
             )

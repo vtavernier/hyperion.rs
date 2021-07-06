@@ -1,6 +1,6 @@
 use crate::{
     color::{color_to16, ChannelAdjustments, ChannelAdjustmentsBuilder},
-    image::RawImage,
+    image::Image,
     models::{Color, Color16, InstanceConfig, Leds},
 };
 
@@ -41,7 +41,7 @@ impl Core {
         self.color_data.iter_mut().map(|x| *x = color).count();
     }
 
-    fn handle_image(&mut self, image: &RawImage) {
+    fn handle_image(&mut self, image: &impl Image) {
         // Update the black border
         self.black_border_detector.process(image);
         let black_border = self.black_border_detector.current_border();
@@ -122,7 +122,7 @@ impl Core {
                 self.handle_color(*color);
             }
             MuxedMessageData::Image { image, .. } => {
-                self.handle_image(&*image);
+                self.handle_image(image.as_ref());
             }
             MuxedMessageData::LedColors { led_colors, .. } => {
                 self.handle_led_colors(&*led_colors);

@@ -4,6 +4,23 @@ use thiserror::Error;
 
 use crate::models::Color;
 
+pub trait Image {
+    /// Get the width of the image, in pixels
+    fn width(&self) -> u32;
+
+    /// Get the height of the image, in pixels
+    fn height(&self) -> u32;
+
+    /// Get the color at the given coordinates
+    fn color_at(&self, x: u32, y: u32) -> Option<Color>;
+
+    /// Get the color at the given coordinates skipping bound checks
+    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color;
+
+    /// Convert this image trait object to a raw image
+    fn to_raw_image(&self) -> RawImage;
+}
+
 #[derive(Debug, Error)]
 pub enum RawImageError {
     #[error("invalid data ({data} bytes) for the given dimensions ({width} x {height} x {channels} = {expected})")]
@@ -35,41 +52,10 @@ pub struct RawImage {
     data: Vec<u8>,
     width: u32,
     height: u32,
-    channels: u32,
 }
 
 impl RawImage {
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn channels(&self) -> u32 {
-        self.channels
-    }
-
-    pub fn color_at(&self, x: u32, y: u32) -> Option<Color> {
-        if x < self.width && y < self.height && self.channels >= 3 {
-            unsafe {
-                Some(Color::from_components((
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * self.channels) as usize),
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * self.channels + 1) as usize),
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * self.channels + 2) as usize),
-                )))
-            }
-        } else {
-            None
-        }
-    }
+    const CHANNELS: u32 = 3;
 
     pub fn write_to_kitty(&self, out: &mut dyn std::io::Write) -> Result<(), RawImageError> {
         // Buffer for raw PNG data
@@ -81,13 +67,7 @@ impl RawImage {
             &self.data[..],
             self.width,
             self.height,
-            if self.channels == 3 {
-                image::ColorType::Rgb8
-            } else if self.channels == 4 {
-                image::ColorType::Rgba8
-            } else {
-                panic!();
-            },
+            image::ColorType::Rgb8,
         )?;
         // Encode to base64
         let encoded = base64::encode(&buf);
@@ -121,12 +101,60 @@ impl RawImage {
     }
 }
 
+impl Image for RawImage {
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
+    fn color_at(&self, x: u32, y: u32) -> Option<Color> {
+        if x < self.width && y < self.height {
+            unsafe {
+                Some(Color::new(
+                    *self
+                        .data
+                        .get_unchecked(((y * self.width + x) * Self::CHANNELS) as usize),
+                    *self
+                        .data
+                        .get_unchecked(((y * self.width + x) * Self::CHANNELS + 1) as usize),
+                    *self
+                        .data
+                        .get_unchecked(((y * self.width + x) * Self::CHANNELS + 2) as usize),
+                ))
+            }
+        } else {
+            None
+        }
+    }
+
+    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color {
+        Color::new(
+            *self
+                .data
+                .get_unchecked(((y * self.width + x) * Self::CHANNELS) as usize),
+            *self
+                .data
+                .get_unchecked(((y * self.width + x) * Self::CHANNELS + 1) as usize),
+            *self
+                .data
+                .get_unchecked(((y * self.width + x) * Self::CHANNELS + 2) as usize),
+        )
+    }
+
+    fn to_raw_image(&self) -> RawImage {
+        self.clone()
+    }
+}
+
 impl std::fmt::Debug for RawImage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut f = f.debug_struct("RawImage");
         f.field("width", &self.width);
         f.field("height", &self.height);
-        f.field("channels", &self.channels);
+        f.field("channels", &Self::CHANNELS);
 
         if self.data.len() > 32 {
             f.field("data", &format!("[{} bytes]", self.data.len()));
@@ -142,15 +170,14 @@ impl TryFrom<(Vec<u8>, u32, u32)> for RawImage {
     type Error = RawImageError;
 
     fn try_from((data, width, height): (Vec<u8>, u32, u32)) -> Result<Self, Self::Error> {
-        let channels = 3;
-        let expected = (width * height * channels) as usize;
+        let expected = (width * height * Self::CHANNELS) as usize;
 
         if data.len() != expected {
             return Err(RawImageError::InvalidData {
                 data: data.len(),
                 width,
                 height,
-                channels,
+                channels: Self::CHANNELS,
                 expected,
             });
         } else if width == 0 {
@@ -163,7 +190,6 @@ impl TryFrom<(Vec<u8>, u32, u32)> for RawImage {
             data,
             width,
             height,
-            channels,
         })
     }
 }

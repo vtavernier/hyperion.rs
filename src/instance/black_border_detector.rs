@@ -1,4 +1,4 @@
-use crate::{image::RawImage, models};
+use crate::{image::Image, models};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BlackBorder {
@@ -40,7 +40,7 @@ impl BlackBorder {
         }
     }
 
-    fn process_default(&mut self, image: &RawImage) {
+    fn process_default(&mut self, image: &impl Image) {
         let width = image.width();
         let height = image.height();
         let width33 = width / 3;
@@ -68,7 +68,7 @@ impl BlackBorder {
         self.update((first_non_black_x, first_non_black_y));
     }
 
-    fn process_classic(&mut self, image: &RawImage) {
+    fn process_classic(&mut self, image: &impl Image) {
         let width = image.width() / 3;
         let height = image.height() / 3;
         let max_size = width.max(height);
@@ -116,7 +116,7 @@ impl BlackBorder {
         ));
     }
 
-    fn process_osd(&mut self, image: &RawImage) {
+    fn process_osd(&mut self, image: &impl Image) {
         let width = image.width();
         let height = image.height();
         let width33 = width / 3;
@@ -145,7 +145,7 @@ impl BlackBorder {
         self.update((first_non_black_x, first_non_black_y));
     }
 
-    fn process_letterbox(&mut self, image: &RawImage) {
+    fn process_letterbox(&mut self, image: &impl Image) {
         let width = image.width();
         let height = image.height();
         let height33 = height / 3;
@@ -173,7 +173,7 @@ impl BlackBorder {
         ));
     }
 
-    pub fn process(&mut self, image: &RawImage, mode: models::BlackBorderDetectorMode) {
+    pub fn process(&mut self, image: &impl Image, mode: models::BlackBorderDetectorMode) {
         match mode {
             models::BlackBorderDetectorMode::Default => self.process_default(image),
             models::BlackBorderDetectorMode::Classic => self.process_classic(image),
@@ -288,7 +288,7 @@ impl BlackBorderDetector {
     /// # Returns
     ///
     /// true if a different border was detected, false otherwise
-    pub fn process(&mut self, image: &RawImage) -> bool {
+    pub fn process(&mut self, image: &impl Image) -> bool {
         let mut image_border = BlackBorder::new(self.threshold());
 
         if !self.config.enable {
