@@ -19,18 +19,18 @@ chrono = { version = "0.4", features = ["serde"] }
 color-eyre = "0.5"
 dirs = "3.0"
 env_logger = "0.8"
-flatbuffers = "0.8"
+flatbuffers = "2.0"
 futures = "0.3"
 futures-io = "0.3"
 git-version = "0.3"
 hex = { version = "0.4", features = ["serde"] }
 hostname = "0.3"
 image = "0.23"
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 log = "0.4"
 num_cpus = "1.13"
 palette = { version = "0.5", features = ["serializing"] }
-parse-display = "0.4"
+parse-display = "0.5"
 paw = "1.0"
 prost = "0.7"
 regex = "1.5"
@@ -41,13 +41,13 @@ slotmap = "1.0"
 spidev = "0.4"
 sqlx = { version = "0.5", features = ["sqlite", "runtime-tokio-rustls"] }
 structopt = { version = "0.3", features = ["paw"] }
-strum = "0.20"
-strum_macros = "0.20"
+strum = "0.21"
+strum_macros = "0.21"
 thiserror = "1.0"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.8", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 uuid = { version = "0.8", features = ["serde"] }
-validator = { version = "0.12", features = ["derive"] }
+validator = { version = "0.14", features = ["derive"] }
 
 [build-dependencies]
-prost-build = "0.7.0"
+prost-build = "0.7"
