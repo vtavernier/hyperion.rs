@@ -9,6 +9,10 @@ default-run = "hyperiond"
 name = "hyperiond"
 path = "src/main.rs"
 
+[[bench]]
+name = "reducer"
+harness = false
+
 [dependencies]
 ambassador = "0.2"
 async-trait = "0.1"
@@ -51,3 +55,7 @@ validator = { version = "0.14", features = ["derive"] }
 
 [build-dependencies]
 prost-build = "0.7"
+
+[dev-dependencies]
+criterion = "0.3"
+rand = "0.8"

@@ -58,7 +58,7 @@ pub struct RawImage {
 }
 
 impl RawImage {
-    const CHANNELS: u32 = 3;
+    pub const CHANNELS: u32 = 3;
 
     pub fn write_to_kitty(&self, out: &mut dyn std::io::Write) -> Result<(), RawImageError> {
         // Buffer for raw PNG data
