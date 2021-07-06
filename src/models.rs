@@ -272,7 +272,7 @@ pub trait DeviceConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Dummy {
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
@@ -1374,6 +1374,8 @@ impl InstanceConfigCreator {
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    #[error("i/o error: {0}")]
+    Io(#[from] std::io::Error),
     #[error("error querying the database: {0}")]
     Sqlx(#[from] sqlx::Error),
     #[error("error loading instance: {0}")]
@@ -1387,6 +1389,8 @@ pub enum ConfigError {
     // TODO: Say which setting?
     #[error("missing hyperion_inst field on instance setting")]
     MissingHyperionInst,
+    #[error("invalid JSON: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1599,6 +1603,16 @@ impl Config {
             meta,
             users,
         })
+    }
+
+    pub async fn load_file(path: &std::path::Path) -> Result<Self, ConfigError> {
+        use tokio::io::AsyncReadExt;
+
+        let mut file = tokio::fs::File::open(path).await?;
+        let mut full = String::new();
+        file.read_to_string(&mut full).await?;
+
+        Ok(serde_json::from_str(&full)?)
     }
 
     pub fn uuid(&self) -> uuid::Uuid {

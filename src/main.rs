@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 use tokio::runtime::Builder;
 use tokio::signal;
@@ -11,16 +13,23 @@ struct Opts {
     verbose: u32,
     #[structopt(short, long = "db-path")]
     database_path: Option<String>,
+    #[structopt(short, long = "config")]
+    config_path: Option<PathBuf>,
     #[structopt(long)]
     dump_config: bool,
 }
 
 async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
-    // Connect to database
-    let mut db = hyperion::db::Db::try_default(opts.database_path.as_deref()).await?;
-
     // Load configuration
-    let config = hyperion::models::Config::load(&mut db).await?;
+    let config = {
+        if let Some(config_path) = opts.config_path.as_deref() {
+            hyperion::models::Config::load_file(config_path).await?
+        } else {
+            // Connect to database
+            let mut db = hyperion::db::Db::try_default(opts.database_path.as_deref()).await?;
+            hyperion::models::Config::load(&mut db).await?
+        }
+    };
 
     // Dump configuration if this was asked
     if opts.dump_config {
