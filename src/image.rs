@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::models::Color;
 
-pub trait Image {
+pub trait Image: Sized {
     /// Get the width of the image, in pixels
     fn width(&self) -> u32;
 
@@ -192,4 +192,73 @@ impl TryFrom<(Vec<u8>, u32, u32)> for RawImage {
             height,
         })
     }
+}
+
+pub struct ImageView<'i, T: Image> {
+    inner: &'i T,
+    xmin: u32,
+    xmax: u32,
+    ymin: u32,
+    ymax: u32,
+}
+
+impl<'i, T: Image> Image for ImageView<'i, T> {
+    fn width(&self) -> u32 {
+        self.xmax - self.xmin
+    }
+
+    fn height(&self) -> u32 {
+        self.ymax - self.ymin
+    }
+
+    fn color_at(&self, x: u32, y: u32) -> Option<Color> {
+        self.inner.color_at(x + self.xmin, y + self.ymin)
+    }
+
+    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color {
+        self.inner.color_at_unchecked(x + self.xmin, y + self.ymin)
+    }
+
+    fn to_raw_image(&self) -> RawImage {
+        let w = self.width();
+        let h = self.height();
+        let mut data = Vec::with_capacity((w * h * RawImage::CHANNELS) as usize);
+
+        unsafe {
+            for y in 0..h {
+                for x in 0..w {
+                    let (r, g, b) = self.color_at_unchecked(x, y).into_components();
+                    data.push(r);
+                    data.push(g);
+                    data.push(b);
+                }
+            }
+        }
+
+        RawImage {
+            data,
+            width: w as _,
+            height: h as _,
+        }
+    }
+}
+
+pub trait ImageViewExt: Image {
+    fn wrap(&self, x: std::ops::Range<u32>, y: std::ops::Range<u32>) -> ImageView<Self>;
+}
+
+impl<T: Image> ImageViewExt for T {
+    fn wrap(&self, x: std::ops::Range<u32>, y: std::ops::Range<u32>) -> ImageView<Self> {
+        ImageView {
+            inner: self,
+            xmin: x.start,
+            xmax: x.end,
+            ymin: y.start,
+            ymax: y.end,
+        }
+    }
+}
+
+pub mod prelude {
+    pub use super::{Image, ImageViewExt};
 }

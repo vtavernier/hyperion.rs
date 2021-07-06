@@ -1,6 +1,6 @@
 use crate::{
     color::{color_to16, ChannelAdjustments, ChannelAdjustmentsBuilder},
-    image::Image,
+    image::prelude::*,
     models::{Color, Color16, InstanceConfig, Leds},
 };
 
@@ -48,9 +48,13 @@ impl Core {
         let black_border = self.black_border_detector.current_border();
 
         // Update the 16-bit color data from the LED ranges and the image
-        let ((xmin, xmax), (ymin, ymax)) = black_border.get_ranges(image.width(), image.height());
-        let width = (xmax - xmin) as f32;
-        let height = (ymax - ymin) as f32;
+        let image = {
+            let (x, y) = black_border.get_ranges(image.width(), image.height());
+            image.wrap(x, y)
+        };
+
+        let width = image.width() as f32;
+        let height = image.height() as f32;
         for (spec, value) in self.leds.leds.iter().zip(self.color_data.iter_mut()) {
             let mut r_acc = 0u64;
             let mut g_acc = 0u64;
@@ -58,10 +62,10 @@ impl Core {
             let mut cnt = 0u64;
 
             // TODO: Fixed point arithmetic
-            let lxmin = spec.hmin * width + xmin as f32;
-            let lxmax = spec.hmax * width + xmin as f32;
-            let lymin = spec.vmin * height + ymin as f32;
-            let lymax = spec.vmax * height + ymin as f32;
+            let lxmin = spec.hmin * width;
+            let lxmax = spec.hmax * width;
+            let lymin = spec.vmin * height;
+            let lymax = spec.vmax * height;
 
             for y in lymin.floor() as u32..=(lymax.ceil() as u32).min(image.height() - 1) {
                 let y_area = if (y as f32) < lymin {

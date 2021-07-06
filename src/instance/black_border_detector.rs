@@ -192,19 +192,18 @@ impl BlackBorder {
         }
     }
 
-    pub fn get_ranges(&self, width: u32, height: u32) -> ((u32, u32), (u32, u32)) {
+    pub fn get_ranges(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> (std::ops::Range<u32>, std::ops::Range<u32>) {
         if self.unknown {
-            ((0, width), (0, height))
+            (0..width, 0..height)
         } else {
             (
-                (
-                    self.vertical_size.min(width / 2),
-                    (width - self.vertical_size).max(width / 2),
-                ),
-                (
-                    self.horizontal_size.min(height / 2),
-                    (height - self.horizontal_size).max(height / 2),
-                ),
+                self.vertical_size.min(width / 2)..(width - self.vertical_size).max(width / 2),
+                self.horizontal_size.min(height / 2)
+                    ..(height - self.horizontal_size).max(height / 2),
             )
         }
     }
