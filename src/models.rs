@@ -9,6 +9,9 @@ use validator::Validate;
 
 use crate::db::models as db_models;
 
+mod layouts;
+pub use layouts::*;
+
 pub type Color = palette::rgb::LinSrgb<u8>;
 pub type Color16 = palette::rgb::LinSrgb<u16>;
 
@@ -695,6 +698,7 @@ pub struct ClassicLedConfig {
     pub hdepth: u32,
     #[validate(range(min = 1, max = 100))]
     pub vdepth: u32,
+    #[validate(range(min = 0, max = 100))]
     pub overlap: u32,
     #[validate(range(max = 50))]
     pub edgegap: u32,
