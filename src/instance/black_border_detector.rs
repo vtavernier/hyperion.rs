@@ -18,14 +18,8 @@ impl BlackBorder {
         }
     }
 
-    fn is_black(&self, color: Option<models::Color>) -> bool {
-        color
-            .map(|color| {
-                color.red < self.threshold
-                    && color.green < self.threshold
-                    && color.blue < self.threshold
-            })
-            .unwrap_or(true)
+    fn is_black(&self, color: models::Color) -> bool {
+        color.red < self.threshold && color.green < self.threshold && color.blue < self.threshold
     }
 
     fn update(&mut self, xy: (Option<u32>, Option<u32>)) {
@@ -53,19 +47,22 @@ impl BlackBorder {
         let width = width - 1;
         let height = height - 1;
 
-        let first_non_black_x = (0..width33).find(|x| {
-            !self.is_black(image.color_at(width - *x, y_center))
-                || !self.is_black(image.color_at(*x, height33))
-                || !self.is_black(image.color_at(*x, height66))
-        });
+        // Safety: width33 < width && height33 < height so x and y are in range
+        unsafe {
+            let first_non_black_x = (0..width33).find(|x| {
+                !self.is_black(image.color_at_unchecked(width - *x, y_center))
+                    || !self.is_black(image.color_at_unchecked(*x, height33))
+                    || !self.is_black(image.color_at_unchecked(*x, height66))
+            });
 
-        let first_non_black_y = (0..height33).find(|y| {
-            !self.is_black(image.color_at(x_center, height - *y))
-                || !self.is_black(image.color_at(width33, *y))
-                || !self.is_black(image.color_at(width66, *y))
-        });
+            let first_non_black_y = (0..height33).find(|y| {
+                !self.is_black(image.color_at_unchecked(x_center, height - *y))
+                    || !self.is_black(image.color_at_unchecked(width33, *y))
+                    || !self.is_black(image.color_at_unchecked(width66, *y))
+            });
 
-        self.update((first_non_black_x, first_non_black_y));
+            self.update((first_non_black_x, first_non_black_y));
+        }
     }
 
     fn process_classic(&mut self, image: &impl Image) {
@@ -80,23 +77,41 @@ impl BlackBorder {
             let x = i.min(width);
             let y = i.min(height);
 
-            if !self.is_black(image.color_at(x, y)) {
-                first_non_black_x = x as _;
-                first_non_black_y = y as _;
+            // Safety: x and y are in range, since width < image.width()
+            unsafe {
+                if !self.is_black(image.color_at_unchecked(x, y)) {
+                    first_non_black_x = x as _;
+                    first_non_black_y = y as _;
+                }
             }
         }
 
         while first_non_black_x > 0 {
-            if self.is_black(image.color_at((first_non_black_x - 1) as _, first_non_black_y as _)) {
-                break;
+            // Safety: first_non_black_x > 0 && first_non_black_x <= width
+            unsafe {
+                if first_non_black_y < 0
+                    || self.is_black(
+                        image.color_at_unchecked(
+                            (first_non_black_x - 1) as _,
+                            first_non_black_y as _,
+                        ),
+                    )
+                {
+                    break;
+                }
             }
 
             first_non_black_x -= 1;
         }
 
         while first_non_black_y > 0 {
-            if self.is_black(image.color_at(first_non_black_x as _, (first_non_black_y - 1) as _)) {
-                break;
+            // Safety: first_non_black_x >= 0 && first_non_black_y > 0
+            unsafe {
+                if self.is_black(
+                    image.color_at_unchecked(first_non_black_x as _, (first_non_black_y - 1) as _),
+                ) {
+                    break;
+                }
             }
 
             first_non_black_y -= 1;
@@ -127,22 +142,25 @@ impl BlackBorder {
         let width = width - 1;
         let height = height - 1;
 
-        let first_non_black_x = (0..width33).find(|x| {
-            !self.is_black(image.color_at(width - *x, y_center))
-                || !self.is_black(image.color_at(*x, height33))
-                || !self.is_black(image.color_at(*x, height66))
-        });
+        // Safety: all operations are in range of the image dimensions
+        unsafe {
+            let first_non_black_x = (0..width33).find(|x| {
+                !self.is_black(image.color_at_unchecked(width - *x, y_center))
+                    || !self.is_black(image.color_at_unchecked(*x, height33))
+                    || !self.is_black(image.color_at_unchecked(*x, height66))
+            });
 
-        let x = first_non_black_x.unwrap_or(width33);
+            let x = first_non_black_x.unwrap_or(width33);
 
-        let first_non_black_y = (0..height33).find(|y| {
-            !self.is_black(image.color_at(x, *y))
-                || !self.is_black(image.color_at(x, height - *y))
-                || !self.is_black(image.color_at(width - x, *y))
-                || !self.is_black(image.color_at(width - x, height - *y))
-        });
+            let first_non_black_y = (0..height33).find(|y| {
+                !self.is_black(image.color_at_unchecked(x, *y))
+                    || !self.is_black(image.color_at_unchecked(x, height - *y))
+                    || !self.is_black(image.color_at_unchecked(width - x, *y))
+                    || !self.is_black(image.color_at_unchecked(width - x, height - *y))
+            });
 
-        self.update((first_non_black_x, first_non_black_y));
+            self.update((first_non_black_x, first_non_black_y));
+        }
     }
 
     fn process_letterbox(&mut self, image: &impl Image) {
@@ -155,22 +173,25 @@ impl BlackBorder {
 
         let height = height - 1;
 
-        let first_non_black_y = (0..height33).find(|y| {
-            !self.is_black(image.color_at(x_center, *y))
-                || !self.is_black(image.color_at(width25, *y))
-                || !self.is_black(image.color_at(width75, *y))
-                || !self.is_black(image.color_at(width25, height - *y))
-                || !self.is_black(image.color_at(width75, height - *y))
-        });
+        // Safety: all operations are in range of the image dimensions
+        unsafe {
+            let first_non_black_y = (0..height33).find(|y| {
+                !self.is_black(image.color_at_unchecked(x_center, *y))
+                    || !self.is_black(image.color_at_unchecked(width25, *y))
+                    || !self.is_black(image.color_at_unchecked(width75, *y))
+                    || !self.is_black(image.color_at_unchecked(width25, height - *y))
+                    || !self.is_black(image.color_at_unchecked(width75, height - *y))
+            });
 
-        self.update((
-            first_non_black_y,
-            if first_non_black_y.is_none() {
-                None
-            } else {
-                Some(0)
-            },
-        ));
+            self.update((
+                first_non_black_y,
+                if first_non_black_y.is_none() {
+                    None
+                } else {
+                    Some(0)
+                },
+            ));
+        }
     }
 
     pub fn process(&mut self, image: &impl Image, mode: models::BlackBorderDetectorMode) {
