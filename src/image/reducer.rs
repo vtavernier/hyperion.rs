@@ -31,23 +31,23 @@ impl Reducer {
                 };
 
                 for x in lxmin.floor() as u32..=(lxmax.ceil() as u32).min(image.width() - 1) {
-                    if let Some(rgb) = image.color_at(x, y) {
-                        let x_area = if (x as f32) < lxmin {
-                            (255. * (1. - lxmin.fract())) as u64
-                        } else if (x + 1) as f32 > lxmax {
-                            (255. * lxmax.fract()) as u64
-                        } else {
-                            255
-                        };
+                    // Safety: x (resp. y) are necessarily in 0..width (resp. 0..height)
+                    let rgb = unsafe { image.color_at_unchecked(x, y) };
+                    let x_area = if (x as f32) < lxmin {
+                        (255. * (1. - lxmin.fract())) as u64
+                    } else if (x + 1) as f32 > lxmax {
+                        (255. * lxmax.fract()) as u64
+                    } else {
+                        255
+                    };
 
-                        let area = x_area * y_area / 255;
+                    let area = x_area * y_area / 255;
 
-                        let (r, g, b) = rgb.into_components();
-                        r_acc += (r as u64 * 255) * area;
-                        g_acc += (g as u64 * 255) * area;
-                        b_acc += (b as u64 * 255) * area;
-                        cnt += area;
-                    }
+                    let (r, g, b) = rgb.into_components();
+                    r_acc += (r as u64 * 255) * area;
+                    g_acc += (g as u64 * 255) * area;
+                    b_acc += (b as u64 * 255) * area;
+                    cnt += area;
                 }
             }
 
