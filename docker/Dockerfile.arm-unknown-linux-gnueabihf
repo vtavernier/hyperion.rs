@@ -1,7 +1,0 @@
-FROM rustembedded/cross:arm-unknown-linux-gnueabihf
-
-RUN dpkg --add-architecture armhf && \
-	apt-get update -q && \
-	apt-get install -y -q libsqlite3-dev:armhf
-
-RUN ln -s /usr/lib/arm-linux-gnueabihf/libsqlite3.so /usr/arm-linux-gnueabihf/arm-linux-gnueabihf/lib/

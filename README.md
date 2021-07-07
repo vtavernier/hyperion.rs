@@ -57,20 +57,12 @@ If running from a release archive, invoke the `hyperiond-rs` binary directly.
 
 ## Cross-compiling
 
-Cross-compiling is done using [cross](https://github.com/rustembedded/cross). As
-hyperion.rs has native dependencies, we first need to prepare a Docker image
-with the required dependencies, and then build using the resulting image.
-
-*Note: these images will be published on dockerhub as the project stabilizes.*
-
+Cross-compiling is done using [cross](https://github.com/rustembedded/cross).
 Let's say we are building for the Raspberry Pi Zero, which corresponds to the
 Rust target arm-unknown-linux-gnueabihf.
 
 ```bash
 $ export TARGET=arm-unknown-linux-gnueabihf
-
-# Build the Docker image
-$ (cd docker && docker build . -f Dockerfile.$TARGET -t vtavernier/cross-hyperion:$TARGET)
 
 # (if not done already) Install cross
 $ cargo install --force cross

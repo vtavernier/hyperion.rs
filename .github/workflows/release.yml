@@ -34,10 +34,6 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Build Docker image for cross
-        working-directory: docker
-        run: docker build . -f Dockerfile.${{ matrix.target }} -t vtavernier/cross-hyperion:${{ matrix.target }}
-
       - name: Build project
         uses: actions-rs/cargo@v1
         with:
@@ -46,7 +42,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
       - name: Strip resulting binary
-        run: docker run -v ${{ github.workspace }}:/src vtavernier/cross-hyperion:${{ matrix.target }} ${{ matrix.cross }}strip /src/target/${{ matrix.target }}/release/hyperiond
+        run: docker run -v ${{ github.workspace }}:/src rustembedded/cross:${{ matrix.target }} ${{ matrix.cross }}strip /src/target/${{ matrix.target }}/release/hyperiond
 
       - name: Prepare release
         run: |
