@@ -33,7 +33,9 @@ fn default_false() -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
 pub struct Instance {
+    #[serde(skip)]
     pub id: i32,
     #[serde(default = "String::new")]
     pub friendly_name: String,
@@ -1136,6 +1138,7 @@ pub enum MetaError {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub uuid: uuid::Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -1168,6 +1171,7 @@ fn default_none<T>() -> Option<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub name: String,
     #[serde(
@@ -1215,12 +1219,13 @@ impl TryFrom<db_models::DbUser> for User {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, rename_all = "camelCase")]
 pub struct GlobalConfig {
     pub flatbuffers_server: FlatbuffersServer,
     pub forwarder: Forwarder,
     pub framegrabber: Framegrabber,
     pub general: General,
+    #[serde(rename = "grabberV4L2")]
     pub grabber_v4l2: GrabberV4L2,
     pub json_server: JsonServer,
     pub logger: Logger,
@@ -1261,6 +1266,7 @@ struct GlobalConfigCreator {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
 pub struct InstanceConfig {
     #[validate]
     pub instance: Instance,
@@ -1616,7 +1622,14 @@ impl Config {
         let mut full = String::new();
         file.read_to_string(&mut full).await?;
 
-        Ok(serde_json::from_str(&full)?)
+        let mut config: Self = serde_json::from_str(&full)?;
+
+        // Restore instance IDs from map keys
+        for (&k, mut v) in config.instances.iter_mut() {
+            v.instance.id = k;
+        }
+
+        Ok(config)
     }
 
     pub fn uuid(&self) -> uuid::Uuid {

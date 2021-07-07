@@ -33,7 +33,7 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
 
     // Dump configuration if this was asked
     if opts.dump_config {
-        serde_json::to_writer(&mut std::io::stdout(), &config)?;
+        serde_json::to_writer_pretty(&mut std::io::stdout(), &config)?;
         return Ok(());
     }
 
