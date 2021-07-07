@@ -29,7 +29,7 @@ futures-io = "0.3"
 git-version = "0.3"
 hex = { version = "0.4", features = ["serde"] }
 hostname = "0.3"
-image = "0.23"
+image = { version = "0.23", default-features = false, features = ["png"] }
 lazy_static = "1.4"
 log = "0.4"
 num_cpus = "1.13"
