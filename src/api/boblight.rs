@@ -42,10 +42,41 @@ impl ClientConnection {
         }
     }
 
-    fn set_priority(&mut self, priority: i32) {
+    async fn set_priority(&mut self, priority: i32) {
         if priority < 128 || priority >= 254 {
-            // TODO: Find first available priority
-            self.priority = 128;
+            self.priority = self
+                .instance
+                .current_priorities()
+                .await
+                .map(|priorities| {
+                    let mut used_priorities = priorities
+                        .iter()
+                        .map(|p| p.priority)
+                        .skip_while(|p| *p <= 128)
+                        .peekable();
+
+                    for i in 128..255 {
+                        loop {
+                            match used_priorities.peek().cloned() {
+                                Some(used) if used == i => {
+                                    // Current value is used, look at the next one
+                                    used_priorities.next();
+                                    break;
+                                }
+                                Some(used) if used < i => {
+                                    used_priorities.next();
+                                    continue;
+                                }
+                                _ => {
+                                    return i;
+                                }
+                            }
+                        }
+                    }
+
+                    128
+                })
+                .unwrap_or(128)
         } else {
             self.priority = priority;
         }
@@ -94,7 +125,7 @@ impl ClientConnection {
                         _ => {}
                     },
                     message::SetArg::Priority(priority) => {
-                        self.set_priority(priority);
+                        self.set_priority(priority).await;
                     }
                 }
 

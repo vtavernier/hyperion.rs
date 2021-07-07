@@ -778,10 +778,9 @@ pub struct MatrixLedConfig {
 
 impl Default for MatrixLedConfig {
     fn default() -> Self {
-        // TODO: Check those default values?
         Self {
-            ledshoriz: 0,
-            ledsvert: 0,
+            ledshoriz: 1,
+            ledsvert: 1,
             cabling: MatrixCabling::Snake,
             start: MatrixStart::TopLeft,
         }
@@ -1396,9 +1395,8 @@ pub enum ConfigError {
     Meta(#[from] MetaError),
     #[error("error loading user: {0}")]
     User(#[from] UserError),
-    // TODO: Say which setting?
-    #[error("missing hyperion_inst field on instance setting")]
-    MissingHyperionInst,
+    #[error("missing hyperion_inst field on instance setting {0}")]
+    MissingHyperionInst(&'static str),
     #[error("invalid JSON: {0}")]
     Json(#[from] serde_json::Error),
 }
@@ -1439,7 +1437,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("backgroundEffect"))?,
                         )
                         .unwrap()
                         .background_effect = Some(config)
@@ -1449,7 +1447,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("blackborderdetector"))?,
                         )
                         .unwrap()
                         .black_border_detector = Some(config)
@@ -1459,7 +1457,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("boblightServer"))?,
                         )
                         .unwrap()
                         .boblight_server = Some(config)
@@ -1469,7 +1467,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("color"))?,
                         )
                         .unwrap()
                         .color = Some(config)
@@ -1479,7 +1477,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("device"))?,
                         )
                         .unwrap()
                         .device = Some(config)
@@ -1489,7 +1487,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("effects"))?,
                         )
                         .unwrap()
                         .effects = Some(config)
@@ -1499,7 +1497,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("foregroundEffect"))?,
                         )
                         .unwrap()
                         .foreground_effect = Some(config)
@@ -1509,7 +1507,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("instCapture"))?,
                         )
                         .unwrap()
                         .instance_capture = Some(config)
@@ -1519,7 +1517,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("ledConfig"))?,
                         )
                         .unwrap()
                         .led_config = Some(config)
@@ -1529,7 +1527,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("leds"))?,
                         )
                         .unwrap()
                         .leds = Some(config)
@@ -1539,7 +1537,7 @@ impl Config {
                         .get_mut(
                             &setting
                                 .hyperion_inst
-                                .ok_or(ConfigError::MissingHyperionInst)?,
+                                .ok_or(ConfigError::MissingHyperionInst("smoothing"))?,
                         )
                         .unwrap()
                         .smoothing = Some(config)

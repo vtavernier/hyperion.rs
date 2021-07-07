@@ -98,7 +98,6 @@ impl Core {
         // Update color data
         match message.data() {
             MuxedMessageData::SolidColor { color, .. } => {
-                // TODO: Replace with fill once it's stabilized
                 self.handle_color(*color);
             }
             MuxedMessageData::Image { image, .. } => {
