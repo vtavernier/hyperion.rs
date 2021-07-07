@@ -4,7 +4,6 @@ use spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer};
 use super::{common::*, DeviceError};
 use crate::models;
 
-// TODO: Support invert
 // TODO: Support latch_time
 
 pub type Ws2812SpiDevice = Rewriter<Ws2812SpiImpl>;
@@ -66,6 +65,12 @@ impl WritingDevice for Ws2812SpiImpl {
 
         for dst in self.buf.iter_mut().skip(ptr) {
             *dst = 0;
+        }
+
+        if config.invert {
+            for byte in &mut self.buf  {
+                *byte = !*byte;
+            }
         }
 
         Ok(())
