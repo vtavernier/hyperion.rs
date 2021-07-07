@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use thiserror::Error;
-use tokio::sync::mpsc::Sender;
 
 use crate::{
     global::{InputMessage, InputMessageData, InputSourceHandle, Message},
-    models::{Color, InstanceConfig},
+    instance::{InstanceHandle, InstanceHandleError},
+    models::Color,
 };
 
 pub mod message;
@@ -17,27 +17,27 @@ pub enum BoblightApiError {
     Broadcast(#[from] tokio::sync::mpsc::error::SendError<InputMessage>),
     #[error("missing command data in protobuf frame")]
     MissingCommand,
+    #[error("invalid instance")]
+    InvalidInstance(#[from] InstanceHandleError),
 }
 
 pub struct ClientConnection {
     handle: InputSourceHandle<InputMessage>,
     led_colors: Vec<Color>,
     priority: i32,
-    tx: Sender<InputMessage>,
-    instance: Arc<InstanceConfig>,
+    instance: InstanceHandle,
 }
 
 impl ClientConnection {
     pub fn new(
         handle: InputSourceHandle<InputMessage>,
-        tx: Sender<InputMessage>,
-        instance: Arc<InstanceConfig>,
+        led_count: usize,
+        instance: InstanceHandle,
     ) -> Self {
         Self {
             handle,
-            led_colors: vec![Color::default(); instance.leds.leds.len()],
+            led_colors: vec![Color::default(); led_count],
             priority: 128,
-            tx,
             instance,
         }
     }
@@ -51,8 +51,9 @@ impl ClientConnection {
         }
     }
 
-    async fn sync(&self) -> Result<(), tokio::sync::mpsc::error::SendError<InputMessage>> {
-        self.tx
+    async fn sync(&self) -> Result<(), BoblightApiError> {
+        Ok(self
+            .instance
             .send(InputMessage::new(
                 self.handle.id(),
                 crate::component::ComponentName::BoblightServer,
@@ -62,7 +63,7 @@ impl ClientConnection {
                     led_colors: Arc::new(self.led_colors.clone()),
                 },
             ))
-            .await
+            .await?)
     }
 
     pub async fn handle_request(
@@ -75,7 +76,7 @@ impl ClientConnection {
             BoblightRequest::Get(get) => match get {
                 message::GetArg::Version => Ok(Some(BoblightResponse::Version)),
                 message::GetArg::Lights => Ok(Some(BoblightResponse::Lights {
-                    leds: self.instance.leds.leds.clone(),
+                    leds: self.instance.config().await?.leds.leds.clone(),
                 })),
             },
             BoblightRequest::Set(set) => {

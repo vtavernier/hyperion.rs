@@ -1,17 +1,16 @@
 //! Boblight protocol server implementation
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use futures::prelude::*;
 use thiserror::Error;
-use tokio::{net::TcpStream, sync::mpsc::Sender};
+use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use crate::{
     api::boblight::{self, BoblightApiError},
-    global::{Global, InputMessage, InputSourceName},
-    models::InstanceConfig,
+    global::{Global, InputSourceName},
+    instance::InstanceHandle,
 };
 
 /// Boblight protocol codec definition
@@ -30,8 +29,8 @@ pub enum BoblightServerError {
 
 pub async fn handle_client(
     (socket, peer_addr): (TcpStream, SocketAddr),
-    tx: Sender<InputMessage>,
-    instance: Arc<InstanceConfig>,
+    led_count: usize,
+    instance: InstanceHandle,
     global: Global,
 ) -> Result<(), BoblightServerError> {
     debug!("accepted new connection from {}", peer_addr,);
@@ -43,7 +42,8 @@ pub async fn handle_client(
         .register_input_source(InputSourceName::Boblight { peer_addr }, None)
         .await
         .unwrap();
-    let mut connection = boblight::ClientConnection::new(source_handle, tx, instance);
+
+    let mut connection = boblight::ClientConnection::new(source_handle, led_count, instance);
 
     while let Some(request) = reader.next().await {
         trace!("({}) processing request: {:?}", peer_addr, request);

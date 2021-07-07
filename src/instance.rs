@@ -70,6 +70,10 @@ impl Instance {
         let muxer = PriorityMuxer::new(global.clone()).await;
         let core = Core::new(&config).await;
 
+        let (tx, handle_rx) = mpsc::channel(1);
+        let id = config.instance.id;
+        let handle = InstanceHandle { id, tx, local_tx };
+
         let config = Arc::new(config);
         let _boblight_server = if config.boblight_server.enable {
             let server_handle = servers::bind(
@@ -77,16 +81,11 @@ impl Instance {
                 config.boblight_server.clone(),
                 global.clone(),
                 {
-                    let instance = config.clone();
-                    let local_tx = local_tx.clone();
+                    let led_count = config.leds.leds.len();
+                    let handle = handle.clone();
 
                     move |tcp, global| {
-                        servers::boblight::handle_client(
-                            tcp,
-                            local_tx.clone(),
-                            instance.clone(),
-                            global,
-                        )
+                        servers::boblight::handle_client(tcp, led_count, handle.clone(), global)
                     }
                 },
             )
@@ -104,9 +103,6 @@ impl Instance {
             None
         };
 
-        let (tx, handle_rx) = mpsc::channel(1);
-        let id = config.instance.id;
-
         (
             Self {
                 config,
@@ -118,7 +114,7 @@ impl Instance {
                 core,
                 _boblight_server,
             },
-            InstanceHandle { id, tx, local_tx },
+            handle,
         )
     }
 
@@ -261,8 +257,8 @@ pub enum InstanceHandleError {
     Dropped,
 }
 
-impl From<tokio::sync::mpsc::error::SendError<InstanceMessage>> for InstanceHandleError {
-    fn from(_: tokio::sync::mpsc::error::SendError<InstanceMessage>) -> Self {
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for InstanceHandleError {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
         Self::Dropped
     }
 }
@@ -276,6 +272,10 @@ impl From<tokio::sync::oneshot::error::RecvError> for InstanceHandleError {
 impl InstanceHandle {
     pub fn id(&self) -> i32 {
         self.id
+    }
+
+    pub async fn send(&self, input: InputMessage) -> Result<(), InstanceHandleError> {
+        Ok(self.local_tx.send(input).await?)
     }
 
     pub async fn current_priorities(&self) -> Result<Vec<PriorityInfo>, InstanceHandleError> {
