@@ -134,10 +134,14 @@ impl Instance {
     }
 
     async fn handle_instance_message(&mut self, message: InstanceMessage) {
+        // ok: the instance shouldn't care if the receiver dropped
+
         match message {
             InstanceMessage::PriorityInfo(tx) => {
-                // unwrap: the receiver should not have dropped
-                tx.send(self.muxer.current_priorities().await).unwrap();
+                tx.send(self.muxer.current_priorities().await).ok();
+            }
+            InstanceMessage::Config(tx) => {
+                tx.send(self.config.clone()).ok();
             }
         }
     }
@@ -145,11 +149,14 @@ impl Instance {
     pub async fn run(mut self) -> Result<(), InstanceError> {
         loop {
             select! {
-                _ = self.device.update() => {
+                update = self.device.update() => {
                     trace!("{}: device update", self.id());
 
-                    // Device update completed
-                    // TODO: Handle device update errors
+                    if let Err(error) = update {
+                        // A device update shouldn't error, disable it
+                        error!("{}: device update failed: {}", self.id(), error);
+                        self.device.inner = Err(error);
+                    }
                 },
                 message = self.receiver.recv() => {
                     trace!("{}: global msg: {:?}", self.id(), message);
@@ -238,6 +245,7 @@ impl From<Result<Device, DeviceError>> for InstanceDevice {
 #[derive(Debug)]
 enum InstanceMessage {
     PriorityInfo(oneshot::Sender<Vec<PriorityInfo>>),
+    Config(oneshot::Sender<Arc<InstanceConfig>>),
 }
 
 #[derive(Clone)]
@@ -247,21 +255,38 @@ pub struct InstanceHandle {
     local_tx: mpsc::Sender<InputMessage>,
 }
 
+#[derive(Debug, Error)]
+pub enum InstanceHandleError {
+    #[error("the corresponding instance is no longer running")]
+    Dropped,
+}
+
+impl From<tokio::sync::mpsc::error::SendError<InstanceMessage>> for InstanceHandleError {
+    fn from(_: tokio::sync::mpsc::error::SendError<InstanceMessage>) -> Self {
+        Self::Dropped
+    }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for InstanceHandleError {
+    fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
+        Self::Dropped
+    }
+}
+
 impl InstanceHandle {
     pub fn id(&self) -> i32 {
         self.id
     }
 
-    pub async fn current_priorities(&self) -> Vec<PriorityInfo> {
+    pub async fn current_priorities(&self) -> Result<Vec<PriorityInfo>, InstanceHandleError> {
         let (tx, rx) = oneshot::channel();
+        self.tx.send(InstanceMessage::PriorityInfo(tx)).await?;
+        Ok(rx.await?)
+    }
 
-        // TODO: Don't unwrap and propagate?
-        self.tx
-            .send(InstanceMessage::PriorityInfo(tx))
-            .await
-            .unwrap();
-
-        // unwrap: if the previous didn't fail, the instance will be there to answer
-        rx.await.unwrap()
+    pub async fn config(&self) -> Result<Arc<InstanceConfig>, InstanceHandleError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(InstanceMessage::Config(tx)).await?;
+        Ok(rx.await?)
     }
 }

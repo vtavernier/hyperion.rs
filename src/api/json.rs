@@ -8,7 +8,7 @@ use crate::{
     component::ComponentName,
     global::{Global, InputMessage, InputMessageData, InputSourceHandle},
     image::{RawImage, RawImageError},
-    instance::InstanceHandle,
+    instance::{InstanceHandle, InstanceHandleError},
 };
 
 /// Schema definitions as Serde serializable structures and enums
@@ -27,6 +27,8 @@ pub enum JsonApiError {
     Validation(#[from] validator::ValidationErrors),
     #[error("error receiving system response: {0}")]
     Recv(#[from] tokio::sync::oneshot::error::RecvError),
+    #[error("error accessing the current instance: {0}")]
+    Instance(#[from] InstanceHandleError),
 }
 
 /// A client connected to the JSON endpoint
@@ -133,11 +135,22 @@ impl ClientConnection {
             HyperionCommand::ServerInfo(message::ServerInfoRequest { subscribe: _ }) => {
                 // TODO: Handle subscribe field
 
-                let priorities = if let Some(handle) = self.current_instance(global).await {
-                    handle.current_priorities().await
-                } else {
-                    vec![]
-                };
+                let (adjustments, priorities) =
+                    if let Some(handle) = self.current_instance(global).await {
+                        (
+                            handle
+                                .config()
+                                .await?
+                                .color
+                                .channel_adjustment
+                                .iter()
+                                .map(|adj| message::ChannelAdjustment::from(adj.clone()))
+                                .collect(),
+                            handle.current_priorities().await?,
+                        )
+                    } else {
+                        Default::default()
+                    };
 
                 // Just answer the serverinfo request, no need to update state
                 return Ok(Some(
@@ -152,8 +165,7 @@ impl ClientConnection {
                             HyperionResponse::server_info(
                                 request.tan,
                                 priorities,
-                                // TODO: Fill adjustments
-                                vec![],
+                                adjustments,
                                 // TODO: Fill effects
                                 vec![],
                                 instances,
