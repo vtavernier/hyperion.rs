@@ -30,7 +30,9 @@ Currently implemented features:
 * JSON, Protobuf, Flatbuffers and Boblight server
 * Black border detector, color channel adjustments, smoothing
 
-## Migrating your settings
+## Configuration
+
+### Migrating your settings
 
 This rewrite uses the same database format for storing settings. In order to
 load your existing hyperion.ng settings, assuming you are in your home
@@ -42,6 +44,31 @@ $ mkdir -p .config/hyperion.rs/
 
 # Copy the existing hyperion.ng database to the new location for hyperion.rs
 $ cp .hyperion/db/hyperion.db .config/hyperion.rs/
+```
+
+### Using a TOML file
+
+You may also configure hyperion.rs using a TOML representation of the configuration. To generate the initial file, you can use the `--dump-config` option:
+
+```bash
+$ hyperiond-rs --dump-config >config.toml
+```
+
+Then, you can start the daemon using this config file:
+
+```bash
+$ hyperiond-rs --config config.toml
+```
+
+The minimal configuration required is as follows:
+
+```toml
+[instances.0.instance]
+friendlyName = 'Test instance'
+enabled = true
+
+[instances.0.device]
+type = 'dummy'
 ```
 
 ## Running hyperion.rs
