@@ -3,6 +3,8 @@ use thiserror::Error;
 
 use crate::models::{self, DeviceConfig};
 
+mod common;
+
 // Device implementation modules
 
 mod dummy;
@@ -47,7 +49,7 @@ impl Device {
                 inner = Box::new(dummy::DummyDevice::new(dummy));
             }
             models::Device::Ws2812Spi(ws2812spi) => {
-                inner = Box::new(ws2812spi::Ws2812SpiDevice::new(ws2812spi)?);
+                inner = Box::new(ws2812spi::build(ws2812spi)?);
             }
             other => {
                 return Err(DeviceError::NotSupported(other.into()));

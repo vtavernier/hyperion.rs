@@ -275,8 +275,9 @@ impl Default for ColorOrder {
 }
 
 #[delegatable_trait]
-pub trait DeviceConfig {
+pub trait DeviceConfig: Sync + Send {
     fn hardware_led_count(&self) -> usize;
+    fn rewrite_time(&self) -> Option<std::time::Duration>;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
@@ -289,6 +290,10 @@ pub struct Dummy {
 impl DeviceConfig for Dummy {
     fn hardware_led_count(&self) -> usize {
         self.hardware_led_count as _
+    }
+
+    fn rewrite_time(&self) -> Option<std::time::Duration> {
+        None
     }
 }
 
@@ -304,7 +309,7 @@ fn default_ws_spi_rate() -> i32 {
     3000000
 }
 
-fn default_ws_spi_rewrite_time() -> i32 {
+fn default_ws_spi_rewrite_time() -> u32 {
     1000
 }
 
@@ -323,12 +328,20 @@ pub struct Ws2812Spi {
     #[serde(default = "default_ws_spi_rate")]
     pub rate: i32,
     #[serde(default = "default_ws_spi_rewrite_time")]
-    pub rewrite_time: i32,
+    pub rewrite_time: u32,
 }
 
 impl DeviceConfig for Ws2812Spi {
     fn hardware_led_count(&self) -> usize {
         self.hardware_led_count as _
+    }
+
+    fn rewrite_time(&self) -> Option<std::time::Duration> {
+        if self.rewrite_time == 0 {
+            None
+        } else {
+            Some(std::time::Duration::from_millis(self.rewrite_time as _))
+        }
     }
 }
 
@@ -368,6 +381,10 @@ pub struct PhilipsHue {
 impl DeviceConfig for PhilipsHue {
     fn hardware_led_count(&self) -> usize {
         self.hardware_led_count as _
+    }
+
+    fn rewrite_time(&self) -> Option<std::time::Duration> {
+        None
     }
 }
 
