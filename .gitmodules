@@ -1,0 +1,3 @@
+[submodule "ext/hyperion.ng"]
+	path = ext/hyperion.ng
+	url = https://github.com/hyperion-project/hyperion.ng.git
