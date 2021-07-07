@@ -34,6 +34,7 @@ num_cpus = "1.13"
 palette = { version = "0.5", features = ["serializing"] }
 parse-display = "0.5"
 paw = "1.0"
+pnet = "0.28"
 prost = "0.7"
 regex = "1.5"
 serde = "1.0"
@@ -52,7 +53,7 @@ toml = "0.5"
 tracing = "0.1"
 tracing-error = "0.1"
 tracing-subscriber = "0.2"
-uuid = { version = "0.8", features = ["serde"] }
+uuid = { version = "0.8", features = ["serde", "v5"] }
 validator = { version = "0.14", features = ["derive"] }
 
 [build-dependencies]

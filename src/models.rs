@@ -1142,7 +1142,23 @@ pub enum MetaError {
 #[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub uuid: uuid::Uuid,
+    #[serde(default = "chrono::Utc::now")]
     pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl Meta {
+    pub fn new() -> Self {
+        let intf = pnet::datalink::interfaces()
+            .iter()
+            .filter_map(|intf| if !intf.is_loopback() { intf.mac } else { None })
+            .next()
+            .unwrap_or_else(pnet::datalink::MacAddr::default);
+
+        Self {
+            uuid: uuid::Uuid::new_v5(&uuid::Uuid::default(), format!("{}", intf).as_bytes()),
+            created_at: chrono::Utc::now(),
+        }
+    }
 }
 
 impl TryFrom<db_models::DbMeta> for Meta {
@@ -1661,10 +1677,16 @@ impl<'c> From<&'c Config> for SerializableConfig<'c> {
     }
 }
 
+fn default_meta() -> Vec<Meta> {
+    vec![Meta::new()]
+}
+
 #[derive(Deserialize)]
 struct DeserializableConfig {
     instances: BTreeMap<String, InstanceConfig>,
+    #[serde(default)]
     global: GlobalConfig,
+    #[serde(default = "default_meta")]
     meta: Vec<Meta>,
     users: Vec<User>,
 }
