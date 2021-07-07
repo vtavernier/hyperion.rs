@@ -5,6 +5,7 @@ use std::{
 
 use ambassador::{delegatable_trait, Delegate};
 use serde_derive::{Deserialize, Serialize};
+use sha2::Digest;
 use strum_macros::{EnumDiscriminants, EnumString, IntoStaticStr};
 use thiserror::Error;
 use validator::Validate;
@@ -1201,10 +1202,6 @@ pub struct User {
         deserialize_with = "hex::deserialize"
     )]
     pub token: Vec<u8>,
-    #[serde(
-        serialize_with = "hex::serialize",
-        deserialize_with = "hex::deserialize"
-    )]
     pub salt: Vec<u8>,
     #[serde(default = "default_none")]
     pub comment: Option<String>,
@@ -1214,6 +1211,45 @@ pub struct User {
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[serde(default = "chrono::Utc::now")]
     pub last_use: chrono::DateTime<chrono::Utc>,
+}
+
+impl User {
+    pub fn hyperion() -> Self {
+        let name = "Hyperion".to_owned();
+        let salt = Self::generate_salt();
+        let token = Self::generate_token();
+        let password = Self::hash_password("hyperion", &salt);
+        let created_at = chrono::Utc::now();
+        let last_use = created_at;
+
+        Self {
+            name,
+            password,
+            token,
+            salt,
+            comment: None,
+            id: None,
+            created_at,
+            last_use,
+        }
+    }
+
+    pub fn generate_token() -> Vec<u8> {
+        let mut hasher = sha2::Sha512::default();
+        hasher.update(uuid::Uuid::new_v4().as_bytes());
+        hasher.finalize().to_vec()
+    }
+
+    pub fn generate_salt() -> Vec<u8> {
+        hex::encode(Self::generate_token()).into_bytes()
+    }
+
+    pub fn hash_password(password: &str, salt: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha512::default();
+        hasher.update(password.as_bytes());
+        hasher.update(salt);
+        hasher.finalize().to_vec()
+    }
 }
 
 impl TryFrom<db_models::DbUser> for User {
@@ -1681,6 +1717,10 @@ fn default_meta() -> Vec<Meta> {
     vec![Meta::new()]
 }
 
+fn default_users() -> Vec<User> {
+    vec![User::hyperion()]
+}
+
 #[derive(Deserialize)]
 struct DeserializableConfig {
     instances: BTreeMap<String, InstanceConfig>,
@@ -1688,6 +1728,7 @@ struct DeserializableConfig {
     global: GlobalConfig,
     #[serde(default = "default_meta")]
     meta: Vec<Meta>,
+    #[serde(default = "default_users")]
     users: Vec<User>,
 }
 
