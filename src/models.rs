@@ -281,6 +281,10 @@ pub trait DeviceConfig: Sync + Send {
     fn rewrite_time(&self) -> Option<std::time::Duration> {
         None
     }
+
+    fn latch_time(&self) -> std::time::Duration {
+        Default::default()
+    }
 }
 
 macro_rules! impl_device_config {
@@ -297,6 +301,10 @@ macro_rules! impl_device_config {
                     Some(std::time::Duration::from_millis(self.rewrite_time as _))
                 }
             }
+
+            fn latch_time(&self) -> std::time::Duration {
+                std::time::Duration::from_millis(self.latch_time as _)
+            }
         }
     };
 }
@@ -308,6 +316,8 @@ pub struct Dummy {
     pub hardware_led_count: u32,
     #[serde(default = "Default::default")]
     pub rewrite_time: u32,
+    #[serde(default = "Default::default")]
+    pub latch_time: u32,
 }
 
 impl_device_config!(Dummy);
@@ -317,6 +327,7 @@ impl Default for Dummy {
         Self {
             hardware_led_count: 1,
             rewrite_time: 0,
+            latch_time: 0,
         }
     }
 }
@@ -339,7 +350,7 @@ pub struct Ws2812Spi {
     #[serde(default = "default_false")]
     pub invert: bool,
     #[serde(default = "Default::default")]
-    pub latch_time: i32,
+    pub latch_time: u32,
     pub output: String,
     #[serde(default = "default_ws_spi_rate")]
     pub rate: i32,

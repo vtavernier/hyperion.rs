@@ -4,8 +4,6 @@ use spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer};
 use super::{common::*, DeviceError};
 use crate::models;
 
-// TODO: Support latch_time
-
 pub type Ws2812SpiDevice = Rewriter<Ws2812SpiImpl>;
 
 pub struct Ws2812SpiImpl {
@@ -68,7 +66,7 @@ impl WritingDevice for Ws2812SpiImpl {
         }
 
         if config.invert {
-            for byte in &mut self.buf  {
+            for byte in &mut self.buf {
                 *byte = !*byte;
             }
         }
