@@ -9,10 +9,6 @@ use crate::models;
 
 pub type Ws2812SpiDevice = Rewriter<Ws2812SpiImpl>;
 
-pub fn build(config: models::Ws2812Spi) -> Result<Ws2812SpiDevice, DeviceError> {
-    Ok(Rewriter::new(Ws2812SpiImpl::new(&config)?, config))
-}
-
 pub struct Ws2812SpiImpl {
     dev: Spidev,
     buf: Vec<u8>,
@@ -23,7 +19,10 @@ const SPI_BYTES_PER_COLOUR: usize = 4;
 const SPI_FRAME_END_LATCH_BYTES: usize = 116;
 const BITPAIR_TO_BYTE: [u8; 4] = [0b10001000, 0b10001100, 0b11001000, 0b11001100];
 
-impl Ws2812SpiImpl {
+#[async_trait]
+impl WritingDevice for Ws2812SpiImpl {
+    type Config = models::Ws2812Spi;
+
     fn new(config: &models::Ws2812Spi) -> Result<Self, DeviceError> {
         // Initialize SPI device
         let mut dev = Spidev::open(&config.output)?;
@@ -45,11 +44,6 @@ impl Ws2812SpiImpl {
 
         Ok(Self { dev, buf })
     }
-}
-
-#[async_trait]
-impl WritingDevice for Ws2812SpiImpl {
-    type Config = models::Ws2812Spi;
 
     async fn set_let_data(
         &mut self,

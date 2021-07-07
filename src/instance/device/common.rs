@@ -6,14 +6,17 @@ use super::{DeviceError, DeviceImpl};
 use crate::models::{self, DeviceConfig};
 
 #[async_trait]
-pub trait WritingDevice: Send {
+pub trait WritingDevice: Send + Sized {
     type Config: DeviceConfig;
+
+    fn new(config: &Self::Config) -> Result<Self, DeviceError>;
 
     async fn set_let_data(
         &mut self,
         config: &Self::Config,
         led_data: &[models::Color],
     ) -> Result<(), DeviceError>;
+
     async fn write(&mut self) -> Result<(), DeviceError>;
 }
 
@@ -24,12 +27,14 @@ pub struct Rewriter<D: WritingDevice> {
 }
 
 impl<D: WritingDevice> Rewriter<D> {
-    pub fn new(inner: D, config: D::Config) -> Self {
-        Self {
+    pub fn new(config: D::Config) -> Result<Self, DeviceError> {
+        let inner = D::new(&config)?;
+
+        Ok(Self {
             inner,
             config,
             last_write_time: None,
-        }
+        })
     }
 
     async fn write(&mut self) -> Result<(), DeviceError> {

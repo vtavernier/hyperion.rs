@@ -277,7 +277,28 @@ impl Default for ColorOrder {
 #[delegatable_trait]
 pub trait DeviceConfig: Sync + Send {
     fn hardware_led_count(&self) -> usize;
-    fn rewrite_time(&self) -> Option<std::time::Duration>;
+
+    fn rewrite_time(&self) -> Option<std::time::Duration> {
+        None
+    }
+}
+
+macro_rules! impl_device_config {
+    ($t:ty) => {
+        impl DeviceConfig for $t {
+            fn hardware_led_count(&self) -> usize {
+                self.hardware_led_count as _
+            }
+
+            fn rewrite_time(&self) -> Option<std::time::Duration> {
+                if self.rewrite_time == 0 {
+                    None
+                } else {
+                    Some(std::time::Duration::from_millis(self.rewrite_time as _))
+                }
+            }
+        }
+    };
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
@@ -285,22 +306,17 @@ pub trait DeviceConfig: Sync + Send {
 pub struct Dummy {
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
+    #[serde(default = "Default::default")]
+    pub rewrite_time: u32,
 }
 
-impl DeviceConfig for Dummy {
-    fn hardware_led_count(&self) -> usize {
-        self.hardware_led_count as _
-    }
-
-    fn rewrite_time(&self) -> Option<std::time::Duration> {
-        None
-    }
-}
+impl_device_config!(Dummy);
 
 impl Default for Dummy {
     fn default() -> Self {
         Self {
             hardware_led_count: 1,
+            rewrite_time: 0,
         }
     }
 }
@@ -331,19 +347,7 @@ pub struct Ws2812Spi {
     pub rewrite_time: u32,
 }
 
-impl DeviceConfig for Ws2812Spi {
-    fn hardware_led_count(&self) -> usize {
-        self.hardware_led_count as _
-    }
-
-    fn rewrite_time(&self) -> Option<std::time::Duration> {
-        if self.rewrite_time == 0 {
-            None
-        } else {
-            Some(std::time::Duration::from_millis(self.rewrite_time as _))
-        }
-    }
-}
+impl_device_config!(Ws2812Spi);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
 #[serde(rename_all = "camelCase")]
@@ -381,10 +385,6 @@ pub struct PhilipsHue {
 impl DeviceConfig for PhilipsHue {
     fn hardware_led_count(&self) -> usize {
         self.hardware_led_count as _
-    }
-
-    fn rewrite_time(&self) -> Option<std::time::Duration> {
-        None
     }
 }
 

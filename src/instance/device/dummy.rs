@@ -1,21 +1,36 @@
 use async_trait::async_trait;
 
-use super::{DeviceError, DeviceImpl};
+use super::{common::*, DeviceError};
 use crate::models;
 
-pub struct DummyDevice;
+pub type DummyDevice = Rewriter<DummyDeviceImpl>;
 
-impl DummyDevice {
-    pub fn new(_config: models::Dummy) -> Self {
-        Self
-    }
+pub struct DummyDeviceImpl {
+    leds: Vec<models::Color>,
 }
 
 #[async_trait]
-impl DeviceImpl for DummyDevice {
-    async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError> {
+impl WritingDevice for DummyDeviceImpl {
+    type Config = models::Dummy;
+
+    fn new(config: &Self::Config) -> Result<Self, DeviceError> {
+        Ok(Self {
+            leds: vec![Default::default(); config.hardware_led_count as _],
+        })
+    }
+
+    async fn set_let_data(
+        &mut self,
+        _config: &Self::Config,
+        led_data: &[models::Color],
+    ) -> Result<(), DeviceError> {
+        self.leds.copy_from_slice(led_data);
+        Ok(())
+    }
+
+    async fn write(&mut self) -> Result<(), DeviceError> {
         // Write to log when we get new data
-        for (i, led) in led_data.iter().enumerate() {
+        for (i, led) in self.leds.iter().enumerate() {
             info!(
                 led = %format_args!("{:3}", i),
                 red = %format_args!("{:3}", led.red),
@@ -25,10 +40,5 @@ impl DeviceImpl for DummyDevice {
         }
 
         Ok(())
-    }
-
-    async fn update(&mut self) -> Result<(), super::DeviceError> {
-        // No regular updates
-        futures::future::pending().await
     }
 }
