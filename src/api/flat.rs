@@ -24,12 +24,39 @@ pub enum FlatApiError {
     Unregistered,
     #[error("invalid priority for registration, should be in [100, 200), got {0}")]
     InvalidPriority(i32),
-    #[error("source already registered")]
-    AlreadyRegistered,
     #[error("unknown command")]
     UnknownCommand,
     #[error("error decoding image: {0}")]
     RawImageError(#[from] RawImageError),
+}
+
+async fn handle_register(
+    peer_addr: SocketAddr,
+    register: message::Register<'_>,
+    source: &mut Option<InputSourceHandle<InputMessage>>,
+    global: &Global,
+) -> Result<(), FlatApiError> {
+    let priority = register.priority();
+
+    if priority < 100 || priority >= 200 {
+        return Err(FlatApiError::InvalidPriority(priority));
+    } else {
+        // unwrap: we checked the priority value before
+        *source = Some(
+            global
+                .register_input_source(
+                    InputSourceName::FlatBuffers {
+                        peer_addr,
+                        origin: register.origin().to_owned(),
+                    },
+                    Some(priority),
+                )
+                .await
+                .unwrap(),
+        );
+    }
+
+    Ok(())
 }
 
 pub async fn handle_request(
@@ -38,16 +65,16 @@ pub async fn handle_request(
     source: &mut Option<InputSourceHandle<InputMessage>>,
     global: &Global,
 ) -> Result<(), FlatApiError> {
-    if let Some(source) = source.as_ref() {
+    if let Some(handle) = source.as_ref() {
         // unwrap: we set a priority when we got the register call
-        let priority = source.priority().unwrap();
+        let priority = handle.priority().unwrap();
 
         if let Some(clear) = request.command_as_clear() {
             // Update state
             if clear.priority() < 0 {
-                source.send(ComponentName::FlatbufServer, InputMessageData::ClearAll)?;
+                handle.send(ComponentName::FlatbufServer, InputMessageData::ClearAll)?;
             } else {
-                source.send(
+                handle.send(
                     ComponentName::FlatbufServer,
                     InputMessageData::Clear {
                         priority: clear.priority(),
@@ -63,7 +90,7 @@ pub async fn handle_request(
             );
 
             // Update state
-            source.send(
+            handle.send(
                 ComponentName::FlatbufServer,
                 InputMessageData::SolidColor {
                     // TODO
@@ -90,7 +117,7 @@ pub async fn handle_request(
             let raw_image = RawImage::try_from((data.to_vec(), width, height))?;
 
             // Update state
-            source.send(
+            handle.send(
                 ComponentName::FlatbufServer,
                 InputMessageData::Image {
                     priority,
@@ -98,32 +125,14 @@ pub async fn handle_request(
                     image: Arc::new(raw_image),
                 },
             )?;
-        } else if let Some(_) = request.command_as_register() {
-            return Err(FlatApiError::AlreadyRegistered);
+        } else if let Some(register) = request.command_as_register() {
+            return handle_register(peer_addr, register, source, global).await;
         } else {
             return Err(FlatApiError::UnknownCommand);
         }
     } else {
         if let Some(register) = request.command_as_register() {
-            let priority = register.priority();
-
-            if priority < 100 || priority >= 200 {
-                return Err(FlatApiError::InvalidPriority(priority));
-            } else {
-                // unwrap: we checked the priority value before
-                *source = Some(
-                    global
-                        .register_input_source(
-                            InputSourceName::FlatBuffers {
-                                peer_addr,
-                                origin: register.origin().to_owned(),
-                            },
-                            Some(priority),
-                        )
-                        .await
-                        .unwrap(),
-                );
-            }
+            return handle_register(peer_addr, register, source, global).await;
         } else {
             return Err(FlatApiError::Unregistered);
         }
