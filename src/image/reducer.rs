@@ -15,7 +15,6 @@ struct LedSpec {
     lxmax: u16,
     lymin: u16,
     lymax: u16,
-    area: u8,
 }
 
 impl LedSpec {
@@ -25,28 +24,11 @@ impl LedSpec {
         let lymin = spec.vmin * fheight;
         let lymax = spec.vmax * fheight;
 
-        let x_area = if lxmin.floor() < lxmin {
-            (255. * (1. - lxmin.fract())) as u16
-        } else if (lxmax.ceil() + 1.) > lxmax {
-            (255. * lxmax.fract()) as u16
-        } else {
-            255
-        };
-
-        let y_area = if lxmin.floor() < lxmin {
-            (255. * (1. - lymin.fract())) as u16
-        } else if (lymax.ceil() + 1.) > lxmax {
-            (255. * lymax.fract()) as u16
-        } else {
-            255
-        };
-
         Self {
             lxmin: lxmin.floor() as u16,
             lxmax: (lxmax.ceil() as u16).min(width - 1),
             lymin: lymin.floor() as u16,
             lymax: (lymax.ceil() as u16).min(height - 1),
-            area: (x_area * y_area / 255) as u8,
         }
     }
 }
@@ -86,7 +68,7 @@ impl Reducer {
                 for x in spec.lxmin..=spec.lxmax {
                     // Safety: x (resp. y) are necessarily in 0..width (resp. 0..height)
                     let rgb = unsafe { image.color_at_unchecked(x as _, y as _) };
-                    let area = spec.area as u64;
+                    let area = 255;
 
                     let (r, g, b) = rgb.into_components();
                     r_acc += (r as u64 * 255) * area;
