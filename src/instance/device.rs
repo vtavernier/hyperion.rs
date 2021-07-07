@@ -33,20 +33,21 @@ trait DeviceImpl: Send {
 }
 
 pub struct Device {
+    name: String,
     inner: Box<dyn DeviceImpl>,
     led_data: Vec<models::Color>,
     notified_inconsistent_led_data: bool,
 }
 
 impl Device {
-    fn build_inner(name: &str, config: models::Device) -> Result<Box<dyn DeviceImpl>, DeviceError> {
+    fn build_inner(config: models::Device) -> Result<Box<dyn DeviceImpl>, DeviceError> {
         let inner: Box<dyn DeviceImpl>;
         match config {
             models::Device::Dummy(dummy) => {
-                inner = Box::new(dummy::DummyDevice::new(name.to_owned(), dummy));
+                inner = Box::new(dummy::DummyDevice::new(dummy));
             }
             models::Device::Ws2812Spi(ws2812spi) => {
-                inner = Box::new(ws2812spi::Ws2812SpiDevice::new(name.to_owned(), ws2812spi)?);
+                inner = Box::new(ws2812spi::Ws2812SpiDevice::new(ws2812spi)?);
             }
             other => {
                 return Err(DeviceError::NotSupported(other.into()));
@@ -56,17 +57,20 @@ impl Device {
         Ok(inner)
     }
 
+    #[instrument(skip(config))]
     pub async fn new(name: &str, config: models::Device) -> Result<Self, DeviceError> {
         let led_count = config.hardware_led_count();
-        let inner = Self::build_inner(name, config)?;
+        let inner = Self::build_inner(config)?;
 
         Ok(Self {
+            name: name.to_owned(),
             inner,
             led_data: vec![Default::default(); led_count],
             notified_inconsistent_led_data: false,
         })
     }
 
+    #[instrument(skip(led_data))]
     pub async fn set_led_data(&mut self, led_data: &[models::Color]) -> Result<(), DeviceError> {
         // Store the LED data for updates
         let led_count = led_data.len();
@@ -107,7 +111,14 @@ impl Device {
         self.inner.set_led_data(&self.led_data).await
     }
 
+    #[instrument]
     pub async fn update(&mut self) -> Result<(), DeviceError> {
         Ok(self.inner.update().await?)
+    }
+}
+
+impl std::fmt::Debug for Device {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Device").field("name", &self.name).finish()
     }
 }

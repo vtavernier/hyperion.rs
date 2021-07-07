@@ -59,8 +59,10 @@ impl Instance {
 
         if let Err(error) = &device.inner {
             error!(
-                "Initializing instance {} `{}` failed: {}",
-                config.instance.id, config.instance.friendly_name, error
+                instance = %config.instance.id,
+                name = %config.instance.friendly_name,
+                error = %error,
+                "initializing instance failed"
             );
         }
 
@@ -93,8 +95,10 @@ impl Instance {
 
             if let Err(error) = &server_handle {
                 error!(
-                    "Cannot start Boblight server for instance {} `{}` failed: {}",
-                    config.instance.id, config.instance.friendly_name, error
+                    instance = %config.instance.id,
+                    name = %config.instance.friendly_name,
+                    error = %error,
+                    "cannot start Boblight server"
                 );
             }
 
@@ -142,20 +146,21 @@ impl Instance {
         }
     }
 
+    #[instrument]
     pub async fn run(mut self) -> Result<(), InstanceError> {
         loop {
             select! {
                 update = self.device.update() => {
-                    trace!("{}: device update", self.id());
+                    trace!("device update");
 
                     if let Err(error) = update {
                         // A device update shouldn't error, disable it
-                        error!("{}: device update failed: {}", self.id(), error);
+                        error!(error = %error, "device update failed, disabling device");
                         self.device.inner = Err(error);
                     }
                 },
                 message = self.receiver.recv() => {
-                    trace!("{}: global msg: {:?}", self.id(), message);
+                    trace!(message = ?message, "global msg");
 
                     match message {
                         Ok(message) => {
@@ -166,12 +171,12 @@ impl Instance {
                             break Ok(());
                         },
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                            warn!("skipped {} input messages", skipped);
+                            warn!(skipped = %skipped, "skipped input messages");
                         },
                     }
                 },
                 message = self.local_receiver.recv() => {
-                    trace!("{}: local msg: {:?}", self.id(), message);
+                    trace!(message = ?message, "local msg");
 
                     if let Some(message) = message {
                         self.on_input_message(message).await;
@@ -180,7 +185,7 @@ impl Instance {
                     }
                 },
                 message = self.muxer.update() => {
-                    trace!("{}: muxer msg: {:?}", self.id(), message);
+                    trace!(message = ?message, "muxer msg");
 
                     // Muxer update completed
                     if let Some(message) = message {
@@ -191,10 +196,10 @@ impl Instance {
                     // LED data changed
                     self.device.set_led_data(led_data).await?;
 
-                    trace!("{}: core update", self.id());
+                    trace!("core update");
                 },
                 message = self.handle_rx.recv() => {
-                    trace!("{}: handle_rx msg: {:?}", self.id(), message);
+                    trace!(message = ?message, "handle_rx msg");
 
                     if let Some(message) = message {
                         self.handle_instance_message(message).await;
@@ -205,6 +210,12 @@ impl Instance {
                 }
             }
         }
+    }
+}
+
+impl std::fmt::Debug for Instance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Instance").field("id", &self.id()).finish()
     }
 }
 

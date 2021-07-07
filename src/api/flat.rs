@@ -59,6 +59,7 @@ async fn handle_register(
     Ok(())
 }
 
+#[instrument(skip(request, source, global))]
 pub async fn handle_request(
     peer_addr: SocketAddr,
     request: message::Request<'_>,

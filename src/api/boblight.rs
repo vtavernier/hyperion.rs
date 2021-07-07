@@ -97,6 +97,7 @@ impl ClientConnection {
             .await?)
     }
 
+    #[instrument(skip(request))]
     pub async fn handle_request(
         &mut self,
         request: BoblightRequest,
@@ -137,5 +138,14 @@ impl ClientConnection {
                 Ok(None)
             }
         }
+    }
+}
+
+impl std::fmt::Debug for ClientConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientConnection")
+            .field("instance", &self.instance.id())
+            .field("source", &format!("{}", &*self.handle))
+            .finish()
     }
 }

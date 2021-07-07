@@ -254,7 +254,7 @@ impl From<&str> for LedMatch {
             }
         }
 
-        error!("invalid format for LED pattern `{}`, ignoring", pattern);
+        error!(pattern = ?pattern, "invalid format for LED pattern, ignoring");
         Self::None
     }
 }
@@ -320,7 +320,7 @@ impl ChannelAdjustmentsBuilder {
                         if let Some(range) = led_mappings.get_mut(range.clone()) {
                             range.fill(key);
                         } else {
-                            error!("invalid range {:?} for {} leds", range, self.led_count);
+                            error!(range = ?range, led_count = %self.led_count, "invalid range");
                         }
                     }
                 }

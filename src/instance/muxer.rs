@@ -133,7 +133,7 @@ impl PriorityMuxer {
             ),
         );
 
-        debug!("current priority is now {}", self.current_priority());
+        debug!(priority = %self.current_priority(), "current priority changed");
         self.notify_output_change()
     }
 
@@ -142,10 +142,10 @@ impl PriorityMuxer {
         let mut notify = self.current_priority() == priority;
 
         notify = self.clear_input(priority) && notify;
-        debug!("cleared priority {}", priority);
+        debug!(priority = %priority, "cleared priority");
 
         if notify {
-            debug!("current priority is now {}", self.current_priority());
+            debug!(priority = %self.current_priority(), "current priority changed");
             Some(self.notify_output_change())
         } else {
             None
@@ -159,14 +159,14 @@ impl PriorityMuxer {
 
         let before = self.insert_input(priority, input.clone());
         trace!(
-            "new command for priority {}: {:?}, replaces: {:?}",
-            priority,
-            input,
-            before
+            priority = %priority,
+            after = ?input,
+            before = ?before,
+            "new command for priority level",
         );
 
         if is_new {
-            debug!("current priority is now {}", priority);
+            debug!(priority = %priority, "current priority changed");
         }
 
         if notify {
@@ -183,10 +183,10 @@ impl PriorityMuxer {
         if let Some(input) = self.inputs.get(&priority) {
             if input.input_id == id {
                 if let Some(removed) = self.inputs.remove(&priority) {
-                    debug!("timeout for input {:?}", removed);
+                    debug!(input = ?removed, "input timeout");
                 }
             } else {
-                warn!("unexpected timeout for input id {}", id);
+                warn!(id = %id, "unexpected timeout for input");
             }
         }
 
@@ -195,7 +195,7 @@ impl PriorityMuxer {
 
         // If the timeout priority is <=, then it was the current input
         if current_priority >= priority {
-            debug!("current priority is now {}", self.current_priority());
+            debug!(priority = %current_priority, "current priority changed");
             Some(self.notify_output_change())
         } else {
             None
@@ -203,7 +203,7 @@ impl PriorityMuxer {
     }
 
     pub async fn handle_message(&mut self, input: InputMessage) -> Option<MuxedMessage> {
-        trace!("got input: {:?}", input);
+        trace!(input = ?input, "got input");
 
         // Check if this will change the output
         match input.data() {

@@ -69,7 +69,7 @@ pub async fn handle_client(
 
         trace!("({}) got request: {:?}", peer_addr, request);
 
-        let reply = match proto::handle_request(request, &source) {
+        let reply = match proto::handle_request(peer_addr.clone(), request, &source) {
             Ok(()) => success_response(peer_addr),
             Err(error) => {
                 error!("({}) error processing request: {}", peer_addr, error);

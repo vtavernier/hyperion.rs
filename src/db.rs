@@ -41,7 +41,7 @@ impl Db {
     }
 
     pub async fn connect(path: &str) -> Result<Self, DbError> {
-        debug!("loading database from `{}`", path);
+        debug!(path = %path, "loading database");
 
         Ok(Self {
             connection: SqliteConnection::connect(path).await?,

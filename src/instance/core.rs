@@ -72,7 +72,7 @@ impl Core {
         } else if led_count < data_count {
             if !self.notified_inconsistent_led_data {
                 self.notified_inconsistent_led_data = true;
-                warn!("too much LED data: {} extra", data_count - led_count);
+                warn!(extra = %(data_count - led_count), "too much LED data");
             }
 
             let (dst, fill) = self.color_data.split_at_mut(led_count);
@@ -80,7 +80,7 @@ impl Core {
         } else {
             if !self.notified_inconsistent_led_data {
                 self.notified_inconsistent_led_data = true;
-                warn!("not enough LED data: {} missing", led_count - data_count);
+                warn!(missing = %(led_count - data_count), "not enough LED data");
             }
 
             let (dst, fill) = self.color_data.split_at_mut(data_count);

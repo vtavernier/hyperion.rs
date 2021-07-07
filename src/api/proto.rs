@@ -1,5 +1,5 @@
-use std::convert::TryFrom;
 use std::sync::Arc;
+use std::{convert::TryFrom, net::SocketAddr};
 
 use thiserror::Error;
 
@@ -26,7 +26,9 @@ pub enum ProtoApiError {
     MissingCommand,
 }
 
+#[instrument(skip(request, source))]
 pub fn handle_request(
+    peer_addr: SocketAddr,
     request: HyperionRequest,
     source: &InputSourceHandle<InputMessage>,
 ) -> Result<(), ProtoApiError> {

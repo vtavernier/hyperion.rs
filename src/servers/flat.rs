@@ -54,16 +54,17 @@ async fn handle_request(
 ) -> Result<(), FlatServerError> {
     let request = message::root_as_request(request_bytes.as_ref())?;
 
-    trace!("({}) got request: {:?}", peer_addr, request.command_type());
+    trace!(request = ?request.command_type(), "processing");
 
     Ok(flat::handle_request(peer_addr, request, source, global).await?)
 }
 
+#[instrument(skip(socket, global))]
 pub async fn handle_client(
     (socket, peer_addr): (TcpStream, SocketAddr),
     global: Global,
 ) -> Result<(), FlatServerError> {
-    debug!("accepted new connection from {}", peer_addr);
+    debug!("accepted new connection");
 
     let framed = tokio_util::codec::LengthDelimitedCodec::builder()
         .length_field_length(4)
@@ -78,7 +79,7 @@ pub async fn handle_client(
         let request_bytes = match request_bytes {
             Ok(rb) => rb,
             Err(error) => {
-                error!("({}) error reading frame: {}", peer_addr, error);
+                error!(error = %error, "error reading frame");
                 continue;
             }
         };
@@ -94,13 +95,13 @@ pub async fn handle_client(
                 }
             }
             Err(error) => {
-                error!("({}) error processing request: {}", peer_addr, error);
+                error!(error = %error, "error processing request");
 
                 error_response(&mut builder, error)
             }
         };
 
-        trace!("sending response: {:?}", reply);
+        trace!(response = ?reply, "sending");
         writer.send(reply).await?;
     }
 

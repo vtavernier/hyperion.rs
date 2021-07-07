@@ -27,13 +27,14 @@ pub enum BoblightServerError {
     Api(#[from] BoblightApiError),
 }
 
+#[instrument(skip(socket, led_count, instance, global))]
 pub async fn handle_client(
     (socket, peer_addr): (TcpStream, SocketAddr),
     led_count: usize,
     instance: InstanceHandle,
     global: Global,
 ) -> Result<(), BoblightServerError> {
-    debug!("accepted new connection from {}", peer_addr,);
+    debug!("accepted new connection");
 
     let framed = Framed::new(socket, BoblightCodec::new());
     let (mut writer, mut reader) = framed.split();
@@ -46,7 +47,7 @@ pub async fn handle_client(
     let mut connection = boblight::ClientConnection::new(source_handle, led_count, instance);
 
     while let Some(request) = reader.next().await {
-        trace!("({}) processing request: {:?}", peer_addr, request);
+        trace!(request = ?request, "processing");
 
         match request {
             Ok(request) => match connection.handle_request(request).await {
@@ -56,11 +57,11 @@ pub async fn handle_client(
                     }
                 }
                 Err(error) => {
-                    warn!("({}) boblight error: {}", peer_addr, error);
+                    warn!(error = %error, "boblight error");
                 }
             },
             Err(error) => {
-                warn!("({}) boblight error: {}", peer_addr, error);
+                warn!(error = %error, "boblight error");
             }
         }
     }

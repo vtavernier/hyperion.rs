@@ -35,7 +35,7 @@ where
     let listener = TcpListener::bind(&address).await?;
 
     // Notify we are listening
-    info!("{} server listening on {}", name, address);
+    info!(address = %address, "{} server listening", name);
 
     // Spawn accepting loop
     let join_handle = tokio::spawn(async move {
@@ -51,10 +51,10 @@ where
 
                             match result {
                                 Ok(_) => {
-                                    info!("({}) client disconnected", peer_addr);
+                                    info!(peer_addr = %peer_addr, "client disconnected");
                                 }
                                 Err(error) => {
-                                    error!("({}) client error:{}", peer_addr, error);
+                                    error!(peer_addr = %peer_addr, error = %error, "client error");
                                 }
                             }
                         }
@@ -65,7 +65,7 @@ where
         };
 
         if let Err(error) = result {
-            error!("{} server terminated: {}", name, error);
+            error!(error = %error, "{} server terminated", name);
         }
     });
 

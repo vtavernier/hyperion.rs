@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 use std::path::PathBuf;
 
@@ -54,7 +54,7 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
                 let result = inst.run().await;
 
                 if let Err(error) = result {
-                    error!("Instance error: {:?}", error);
+                    error!(error = %error, "instance error");
                 }
 
                 global.unregister_instance(id).await;
@@ -115,28 +115,39 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     Ok(())
 }
 
+fn install_tracing(opts: &Opts) -> Result<(), tracing_subscriber::util::TryInitError> {
+    use tracing_error::ErrorLayer;
+    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
+    let fmt_layer = fmt::layer();
+
+    let filter_layer = EnvFilter::try_from_env("HYPERION_LOG").unwrap_or_else(|_| {
+        EnvFilter::new(match opts.verbose {
+            0 => "hyperion=warn,hyperiond=warn",
+            1 => "hyperion=info,hyperiond=info",
+            2 => "hyperion=debug,hyperiond=debug",
+            _ => "hyperion=trace,hyperiond=trace",
+        })
+    });
+
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .with(ErrorLayer::default())
+        .try_init()
+}
+
 #[paw::main]
 fn main(opts: Opts) -> color_eyre::eyre::Result<()> {
     color_eyre::install()?;
-
-    env_logger::Builder::from_env(
-        env_logger::Env::new()
-            .filter_or(
-                "HYPERION_LOG",
-                match opts.verbose {
-                    0 => "hyperion=warn,hyperiond=warn",
-                    1 => "hyperion=info,hyperiond=info",
-                    2 => "hyperion=debug,hyperiond=debug",
-                    _ => "hyperion=trace,hyperiond=trace",
-                },
-            )
-            .write_style("HYPERION_LOG_STYLE"),
-    )
-    .try_init()
-    .ok();
+    install_tracing(&opts)?;
 
     // Create tokio runtime
-    let thd_count = num_cpus::get().min(4);
+    let thd_count = match num_cpus::get() {
+        1 => 2,
+        other => other.min(4),
+    };
+
     let rt = Builder::new_multi_thread()
         .worker_threads(thd_count)
         .enable_all()

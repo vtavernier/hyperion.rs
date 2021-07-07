@@ -26,11 +26,12 @@ pub enum JsonServerError {
     Api(#[from] JsonApiError),
 }
 
+#[instrument(skip(socket, global))]
 pub async fn handle_client(
     (socket, peer_addr): (TcpStream, SocketAddr),
     global: Global,
 ) -> Result<(), JsonServerError> {
-    debug!("accepted new connection from {}", peer_addr,);
+    debug!("accepted new connection");
 
     let framed = Framed::new(socket, JsonCodec::new());
     let (mut writer, mut reader) = framed.split();
@@ -44,7 +45,7 @@ pub async fn handle_client(
     );
 
     while let Some(request) = reader.next().await {
-        trace!("({}) processing request: {:?}", peer_addr, request);
+        trace!(request = ?request, "processing request");
 
         let mut tan = None;
         let reply = match {
@@ -59,13 +60,13 @@ pub async fn handle_client(
             Ok(None) => json::message::HyperionResponse::success(tan),
             Ok(Some(response)) => response,
             Err(error) => {
-                error!("({}) error processing request: {}", peer_addr, error);
+                error!(error = %error, "error processing request");
 
                 json::message::HyperionResponse::error(tan, &error)
             }
         };
 
-        trace!("({}) sending response: {:?}", peer_addr, reply);
+        trace!(response = ?reply, "sending response");
 
         writer.send(reply).await?;
     }

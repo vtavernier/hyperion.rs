@@ -3,13 +3,11 @@ use async_trait::async_trait;
 use super::{DeviceError, DeviceImpl};
 use crate::models;
 
-pub struct DummyDevice {
-    name: String,
-}
+pub struct DummyDevice;
 
 impl DummyDevice {
-    pub fn new(name: String, _config: models::Dummy) -> Self {
-        Self { name }
+    pub fn new(_config: models::Dummy) -> Self {
+        Self
     }
 }
 
@@ -19,8 +17,10 @@ impl DeviceImpl for DummyDevice {
         // Write to log when we get new data
         for (i, led) in led_data.iter().enumerate() {
             info!(
-                "{}: LED {}: {:3}, {:3}, {:3}",
-                self.name, i, led.red, led.green, led.blue
+                led = %format_args!("{:3}", i),
+                red = %format_args!("{:3}", led.red),
+                green = %format_args!("{:3}", led.green),
+                blue = %format_args!("{:3}", led.blue),
             );
         }
 

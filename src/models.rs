@@ -1598,11 +1598,11 @@ impl Config {
         let global: GlobalConfig = global.into();
 
         debug!(
-            "`{}`: loaded {} instance(s), {} meta, {} user(s)",
-            global.general.name,
-            instances.len(),
-            meta.len(),
-            users.len()
+            name = %global.general.name,
+            instances = %instances.len(),
+            meta = %meta.len(),
+            users = %users.len(),
+            "loaded",
         );
 
         Ok(Self {

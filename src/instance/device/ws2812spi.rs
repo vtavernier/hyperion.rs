@@ -22,7 +22,7 @@ const SPI_FRAME_END_LATCH_BYTES: usize = 116;
 const BITPAIR_TO_BYTE: [u8; 4] = [0b10001000, 0b10001100, 0b11001000, 0b11001100];
 
 impl Ws2812SpiDevice {
-    pub fn new(name: String, config: models::Ws2812Spi) -> Result<Self, DeviceError> {
+    pub fn new(config: models::Ws2812Spi) -> Result<Self, DeviceError> {
         // Initialize SPI device
         let mut dev = Spidev::open(&config.output)?;
         let options = SpidevOptions::new()
@@ -39,7 +39,7 @@ impl Ws2812SpiDevice {
                 + SPI_FRAME_END_LATCH_BYTES
         ];
 
-        info!("`{}`: initialized SPI device", name);
+        info!(path = %config.output, "initialized SPI device");
 
         Ok(Self {
             config,

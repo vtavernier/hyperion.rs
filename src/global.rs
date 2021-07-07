@@ -146,7 +146,7 @@ impl GlobalData {
 
         let input_source = Arc::new(InputSource::new(id, name, priority, self.input_tx.clone()));
 
-        info!("registered new input source {}", *input_source);
+        info!(source = %input_source, "registered new input source");
 
         self.input_sources.insert(id, input_source.clone());
 
@@ -155,19 +155,19 @@ impl GlobalData {
 
     fn unregister_input_source(&mut self, source: &InputSource<InputMessage>) {
         if let Some(is) = self.input_sources.remove(&source.id()) {
-            info!("unregistered input source {}", *is);
+            info!(source = %*is, "unregistered input source");
         }
     }
 
     fn register_instance(&mut self, handle: InstanceHandle) {
         let id = handle.id();
         self.instances.insert(id, handle);
-        info!("registered instance {}", id);
+        info!(id = %id, "registered instance");
     }
 
     fn unregister_instance(&mut self, id: i32) {
         if let Some(_) = self.instances.remove(&id) {
-            info!("unregistered instance {}", id);
+            info!(id = %id, "unregistered instance");
         }
     }
 }

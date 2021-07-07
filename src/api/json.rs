@@ -68,6 +68,7 @@ impl ClientConnection {
         self.current_instance = Some(id);
     }
 
+    #[instrument(skip(request, global))]
     pub async fn handle_request(
         &mut self,
         request: HyperionMessage,
@@ -211,5 +212,13 @@ impl ClientConnection {
         };
 
         Ok(None)
+    }
+}
+
+impl std::fmt::Debug for ClientConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientConnection")
+            .field("source", &format!("{}", &*self.source))
+            .finish()
     }
 }
