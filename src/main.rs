@@ -9,12 +9,16 @@ use tokio::signal;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
+    /// Log verbosity. Overrides logger level in config, but is overridden by HYPERION_LOG
     #[structopt(short, long, parse(from_occurrences))]
     verbose: u32,
+    /// Path to the configuration database
     #[structopt(short, long = "db-path")]
     database_path: Option<String>,
+    /// Path to a TOML config file. Overrides the configuration database
     #[structopt(short, long = "config")]
     config_path: Option<PathBuf>,
+    /// Dump the loaded configuration
     #[structopt(long)]
     dump_config: bool,
 }
