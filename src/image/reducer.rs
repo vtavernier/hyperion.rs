@@ -5,8 +5,8 @@ use super::Image;
 #[derive(Debug, Default)]
 pub struct Reducer {
     spec: Vec<LedSpec>,
-    spec_width: u32,
-    spec_height: u32,
+    spec_width: u16,
+    spec_height: u16,
 }
 
 #[derive(Debug)]
@@ -19,41 +19,40 @@ struct LedSpec {
 }
 
 impl LedSpec {
-    pub fn new(spec: &Led, width: u32, height: u32, fwidth: f32, fheight: f32) -> Self {
+    pub fn new(spec: &Led, width: u16, height: u16, fwidth: f32, fheight: f32) -> Self {
         let lxmin = spec.hmin * fwidth;
         let lxmax = spec.hmax * fwidth;
         let lymin = spec.vmin * fheight;
         let lymax = spec.vmax * fheight;
 
         let x_area = if lxmin.floor() < lxmin {
-            (255. * (1. - lxmin.fract())) as u32
+            (255. * (1. - lxmin.fract())) as u16
         } else if (lxmax.ceil() + 1.) > lxmax {
-            (255. * lxmax.fract()) as u32
+            (255. * lxmax.fract()) as u16
         } else {
             255
         };
 
         let y_area = if lxmin.floor() < lxmin {
-            (255. * (1. - lymin.fract())) as u32
+            (255. * (1. - lymin.fract())) as u16
         } else if (lymax.ceil() + 1.) > lxmax {
-            (255. * lymax.fract()) as u32
+            (255. * lymax.fract()) as u16
         } else {
             255
         };
 
-        // TODO: Add width/height limit to RawImage
         Self {
             lxmin: lxmin.floor() as u16,
-            lxmax: (lxmax.ceil() as u16).min((width - 1) as u16),
+            lxmax: (lxmax.ceil() as u16).min(width - 1),
             lymin: lymin.floor() as u16,
-            lymax: (lymax.ceil() as u16).min((height - 1) as u16),
+            lymax: (lymax.ceil() as u16).min(height - 1),
             area: (x_area * y_area / 255) as u8,
         }
     }
 }
 
 impl Reducer {
-    pub fn reset(&mut self, width: u32, height: u32, leds: &[Led]) {
+    pub fn reset(&mut self, width: u16, height: u16, leds: &[Led]) {
         self.spec_width = width;
         self.spec_height = height;
 

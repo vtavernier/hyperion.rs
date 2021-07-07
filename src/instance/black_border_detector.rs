@@ -3,8 +3,8 @@ use crate::{image::Image, models};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BlackBorder {
     pub unknown: bool,
-    pub horizontal_size: u32,
-    pub vertical_size: u32,
+    pub horizontal_size: u16,
+    pub vertical_size: u16,
     threshold: u8,
 }
 
@@ -22,7 +22,7 @@ impl BlackBorder {
         color.red < self.threshold && color.green < self.threshold && color.blue < self.threshold
     }
 
-    fn update(&mut self, xy: (Option<u32>, Option<u32>)) {
+    fn update(&mut self, xy: (Option<u16>, Option<u16>)) {
         if let (Some(x), Some(y)) = xy {
             self.unknown = false;
             self.horizontal_size = y;
@@ -121,12 +121,12 @@ impl BlackBorder {
             if first_non_black_x < 0 {
                 None
             } else {
-                Some(first_non_black_x as u32)
+                Some(first_non_black_x as _)
             },
             if first_non_black_y < 0 {
                 None
             } else {
-                Some(first_non_black_y as u32)
+                Some(first_non_black_y as _)
             },
         ));
     }
@@ -203,7 +203,7 @@ impl BlackBorder {
         }
     }
 
-    pub fn blur(&mut self, blur: u32) {
+    pub fn blur(&mut self, blur: u16) {
         if self.horizontal_size > 0 {
             self.horizontal_size += blur;
         }
@@ -215,9 +215,9 @@ impl BlackBorder {
 
     pub fn get_ranges(
         &self,
-        width: u32,
-        height: u32,
-    ) -> (std::ops::Range<u32>, std::ops::Range<u32>) {
+        width: u16,
+        height: u16,
+    ) -> (std::ops::Range<u16>, std::ops::Range<u16>) {
         if self.unknown {
             (0..width, 0..height)
         } else {

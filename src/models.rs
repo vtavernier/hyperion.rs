@@ -114,7 +114,7 @@ pub struct BlackBorderDetector {
     pub unknown_frame_cnt: u32,
     pub border_frame_cnt: u32,
     pub max_inconsistent_cnt: u32,
-    pub blur_remove_cnt: u32,
+    pub blur_remove_cnt: u16,
     pub mode: BlackBorderDetectorMode,
 }
 

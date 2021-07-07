@@ -8,13 +8,13 @@ use hyperion::{
     models::{ClassicLedConfig, Color16, Leds, ToLeds},
 };
 
-fn random_image(width: u32, height: u32) -> RawImage {
-    let mut data = vec![0u8; (width * height * RawImage::CHANNELS) as usize];
+fn random_image(width: u16, height: u16) -> RawImage {
+    let mut data = vec![0u8; width as usize * height as usize * RawImage::CHANNELS as usize];
 
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut data);
 
-    RawImage::try_from((data, width, height)).unwrap()
+    RawImage::try_from((data, width as u32, height as u32)).unwrap()
 }
 
 fn classic_led_config(leds: u32) -> Leds {

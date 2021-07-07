@@ -9,16 +9,16 @@ pub use reducer::*;
 
 pub trait Image: Sized {
     /// Get the width of the image, in pixels
-    fn width(&self) -> u32;
+    fn width(&self) -> u16;
 
     /// Get the height of the image, in pixels
-    fn height(&self) -> u32;
+    fn height(&self) -> u16;
 
     /// Get the color at the given coordinates
-    fn color_at(&self, x: u32, y: u32) -> Option<Color>;
+    fn color_at(&self, x: u16, y: u16) -> Option<Color>;
 
     /// Get the color at the given coordinates skipping bound checks
-    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color;
+    unsafe fn color_at_unchecked(&self, x: u16, y: u16) -> Color;
 
     /// Convert this image trait object to a raw image
     fn to_raw_image(&self) -> RawImage;
@@ -53,12 +53,12 @@ pub enum RawImageError {
 #[derive(Clone)]
 pub struct RawImage {
     data: Vec<u8>,
-    width: u32,
-    height: u32,
+    width: u16,
+    height: u16,
 }
 
 impl RawImage {
-    pub const CHANNELS: u32 = 3;
+    pub const CHANNELS: u16 = 3;
 
     pub fn write_to_kitty(&self, out: &mut dyn std::io::Write) -> Result<(), RawImageError> {
         // Buffer for raw PNG data
@@ -68,8 +68,8 @@ impl RawImage {
         // Write PNG to buffer
         encoder.encode(
             &self.data[..],
-            self.width,
-            self.height,
+            self.width as _,
+            self.height as _,
             image::ColorType::Rgb8,
         )?;
         // Encode to base64
@@ -105,45 +105,28 @@ impl RawImage {
 }
 
 impl Image for RawImage {
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.width
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.height
     }
 
-    fn color_at(&self, x: u32, y: u32) -> Option<Color> {
+    fn color_at(&self, x: u16, y: u16) -> Option<Color> {
         if x < self.width && y < self.height {
-            unsafe {
-                Some(Color::new(
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * Self::CHANNELS) as usize),
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * Self::CHANNELS + 1) as usize),
-                    *self
-                        .data
-                        .get_unchecked(((y * self.width + x) * Self::CHANNELS + 2) as usize),
-                ))
-            }
+            unsafe { Some(self.color_at_unchecked(x, y)) }
         } else {
             None
         }
     }
 
-    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color {
+    unsafe fn color_at_unchecked(&self, x: u16, y: u16) -> Color {
+        let idx = (y as usize * self.width as usize + x as usize) * Self::CHANNELS as usize;
         Color::new(
-            *self
-                .data
-                .get_unchecked(((y * self.width + x) * Self::CHANNELS) as usize),
-            *self
-                .data
-                .get_unchecked(((y * self.width + x) * Self::CHANNELS + 1) as usize),
-            *self
-                .data
-                .get_unchecked(((y * self.width + x) * Self::CHANNELS + 2) as usize),
+            *self.data.get_unchecked(idx),
+            *self.data.get_unchecked(idx + 1),
+            *self.data.get_unchecked(idx + 2),
         )
     }
 
@@ -173,59 +156,63 @@ impl TryFrom<(Vec<u8>, u32, u32)> for RawImage {
     type Error = RawImageError;
 
     fn try_from((data, width, height): (Vec<u8>, u32, u32)) -> Result<Self, Self::Error> {
-        let expected = (width * height * Self::CHANNELS) as usize;
+        let expected = width as usize * height as usize * Self::CHANNELS as usize;
 
         if data.len() != expected {
             return Err(RawImageError::InvalidData {
                 data: data.len(),
                 width,
                 height,
-                channels: Self::CHANNELS,
+                channels: Self::CHANNELS as _,
                 expected,
             });
         } else if width == 0 {
             return Err(RawImageError::ZeroWidth);
         } else if height == 0 {
             return Err(RawImageError::ZeroHeight);
+        } else if width >= u16::MAX as _ {
+            return Err(RawImageError::InvalidWidth);
+        } else if height >= u16::MAX as _ {
+            return Err(RawImageError::InvalidHeight);
         }
 
         Ok(Self {
             data,
-            width,
-            height,
+            width: width as _,
+            height: height as _,
         })
     }
 }
 
 pub struct ImageView<'i, T: Image> {
     inner: &'i T,
-    xmin: u32,
-    xmax: u32,
-    ymin: u32,
-    ymax: u32,
+    xmin: u16,
+    xmax: u16,
+    ymin: u16,
+    ymax: u16,
 }
 
 impl<'i, T: Image> Image for ImageView<'i, T> {
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.xmax - self.xmin
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.ymax - self.ymin
     }
 
-    fn color_at(&self, x: u32, y: u32) -> Option<Color> {
+    fn color_at(&self, x: u16, y: u16) -> Option<Color> {
         self.inner.color_at(x + self.xmin, y + self.ymin)
     }
 
-    unsafe fn color_at_unchecked(&self, x: u32, y: u32) -> Color {
+    unsafe fn color_at_unchecked(&self, x: u16, y: u16) -> Color {
         self.inner.color_at_unchecked(x + self.xmin, y + self.ymin)
     }
 
     fn to_raw_image(&self) -> RawImage {
         let w = self.width();
         let h = self.height();
-        let mut data = Vec::with_capacity((w * h * RawImage::CHANNELS) as usize);
+        let mut data = Vec::with_capacity(w as usize * h as usize * RawImage::CHANNELS as usize);
 
         unsafe {
             for y in 0..h {
@@ -240,18 +227,18 @@ impl<'i, T: Image> Image for ImageView<'i, T> {
 
         RawImage {
             data,
-            width: w as _,
-            height: h as _,
+            width: w,
+            height: h,
         }
     }
 }
 
 pub trait ImageViewExt: Image {
-    fn wrap(&self, x: std::ops::Range<u32>, y: std::ops::Range<u32>) -> ImageView<Self>;
+    fn wrap(&self, x: std::ops::Range<u16>, y: std::ops::Range<u16>) -> ImageView<Self>;
 }
 
 impl<T: Image> ImageViewExt for T {
-    fn wrap(&self, x: std::ops::Range<u32>, y: std::ops::Range<u32>) -> ImageView<Self> {
+    fn wrap(&self, x: std::ops::Range<u16>, y: std::ops::Range<u16>) -> ImageView<Self> {
         ImageView {
             inner: self,
             xmin: x.start,
