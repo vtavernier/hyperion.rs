@@ -1,5 +1,7 @@
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+};
 
 use ambassador::{delegatable_trait, Delegate};
 use serde_derive::{Deserialize, Serialize};
@@ -1397,11 +1399,13 @@ pub enum ConfigError {
     User(#[from] UserError),
     #[error("missing hyperion_inst field on instance setting {0}")]
     MissingHyperionInst(&'static str),
-    #[error("invalid JSON: {0}")]
-    Json(#[from] serde_json::Error),
+    #[error("invalid TOML: {0}")]
+    Toml(#[from] toml::de::Error),
+    #[error("instance id must be an integer, got {0}")]
+    InvalidId(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub instances: BTreeMap<i32, InstanceConfig>,
     pub global: GlobalConfig,
@@ -1620,18 +1624,68 @@ impl Config {
         let mut full = String::new();
         file.read_to_string(&mut full).await?;
 
-        let mut config: Self = serde_json::from_str(&full)?;
+        let config: DeserializableConfig = toml::from_str(&full)?;
+        Ok(config.try_into()?)
+    }
 
-        // Restore instance IDs from map keys
-        for (&k, mut v) in config.instances.iter_mut() {
-            v.instance.id = k;
-        }
-
-        Ok(config)
+    pub fn to_string(&self) -> Result<String, toml::ser::Error> {
+        toml::to_string_pretty(&SerializableConfig::from(self))
     }
 
     pub fn uuid(&self) -> uuid::Uuid {
         // There should always be a meta uuid
         self.meta.first().map(|meta| meta.uuid).unwrap_or_default()
+    }
+}
+
+#[derive(Serialize)]
+struct SerializableConfig<'c> {
+    instances: BTreeMap<String, &'c InstanceConfig>,
+    global: &'c GlobalConfig,
+    meta: &'c Vec<Meta>,
+    users: &'c Vec<User>,
+}
+
+impl<'c> From<&'c Config> for SerializableConfig<'c> {
+    fn from(config: &'c Config) -> Self {
+        Self {
+            instances: config
+                .instances
+                .iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+            global: &config.global,
+            meta: &config.meta,
+            users: &config.users,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct DeserializableConfig {
+    instances: BTreeMap<String, InstanceConfig>,
+    global: GlobalConfig,
+    meta: Vec<Meta>,
+    users: Vec<User>,
+}
+
+impl TryFrom<DeserializableConfig> for Config {
+    type Error = ConfigError;
+
+    fn try_from(value: DeserializableConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            instances: value
+                .instances
+                .into_iter()
+                .map(|(k, v)| {
+                    k.parse()
+                        .map_err(|_| ConfigError::InvalidId(k.clone()))
+                        .map(|k| (k, v))
+                })
+                .collect::<Result<_, _>>()?,
+            global: value.global,
+            meta: value.meta,
+            users: value.users,
+        })
     }
 }
