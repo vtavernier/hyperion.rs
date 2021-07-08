@@ -1177,8 +1177,7 @@ impl Meta {
     pub fn new() -> Self {
         let intf = pnet::datalink::interfaces()
             .iter()
-            .filter_map(|intf| if !intf.is_loopback() { intf.mac } else { None })
-            .next()
+            .find_map(|intf| if !intf.is_loopback() { intf.mac } else { None })
             .unwrap_or_else(pnet::datalink::MacAddr::default);
 
         Self {
