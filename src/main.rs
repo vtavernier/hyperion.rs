@@ -44,17 +44,42 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     // Create the global state object
     let global = hyperion::global::GlobalData::new(&config).wrap();
 
+    // Spawn the hook runner
+    tokio::spawn(
+        hyperion::global::HookRunner::new(
+            config.global.hooks.clone(),
+            global.subscribe_events().await,
+        )
+        .run(),
+    );
+
+    // Keep a list of all instances
+    let mut instances = Vec::with_capacity(config.instances.len());
+
     // Initialize and spawn the devices
     for (&id, inst) in &config.instances {
         // Create the instance
         let (inst, handle) = hyperion::instance::Instance::new(global.clone(), inst.clone()).await;
         // Register the instance globally using its handle
-        global.register_instance(handle).await;
+        global.register_instance(handle.clone()).await;
+        // Keep it around
+        instances.push(handle);
         // Run the instance futures
         tokio::spawn({
             let global = global.clone();
+            let event_tx = global.get_event_tx().await;
 
             async move {
+                event_tx
+                    .send(hyperion::global::Event::instance(
+                        id,
+                        hyperion::global::InstanceEventKind::Start,
+                    ))
+                    .map(|_| ())
+                    .unwrap_or_else(|err| {
+                        error!(error = %err, "event error");
+                    });
+
                 let result = inst.run().await;
 
                 if let Err(error) = result {
@@ -62,6 +87,16 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
                 }
 
                 global.unregister_instance(id).await;
+
+                event_tx
+                    .send(hyperion::global::Event::instance(
+                        id,
+                        hyperion::global::InstanceEventKind::Stop,
+                    ))
+                    .map(|_| ())
+                    .unwrap_or_else(|err| {
+                        error!(error = %err, "event error");
+                    });
             }
         });
     }
@@ -105,6 +140,12 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
         None
     };
 
+    // Global event handle
+    let event_tx = global.get_event_tx().await;
+
+    // We have started
+    event_tx.send(hyperion::global::Event::Start)?;
+
     // Should we continue running?
     let mut abort = false;
 
@@ -115,6 +156,14 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
             }
         }
     }
+
+    // Stop all instances
+    for instance in instances.into_iter() {
+        instance.stop().await.ok();
+    }
+
+    // We have finished running properly
+    event_tx.send(hyperion::global::Event::Stop)?;
 
     Ok(())
 }

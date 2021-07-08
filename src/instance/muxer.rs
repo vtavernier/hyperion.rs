@@ -32,7 +32,7 @@ pub struct PriorityMuxer {
     >,
 }
 
-const MAX_PRIORITY: i32 = 256;
+pub const MAX_PRIORITY: i32 = 256;
 const MUXER_ID: usize = 0;
 
 impl PriorityMuxer {

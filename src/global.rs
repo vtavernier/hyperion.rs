@@ -6,6 +6,12 @@ use parse_display::Display;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 
+mod event;
+pub use event::*;
+
+mod hook_runner;
+pub use hook_runner::*;
+
 mod input_message;
 pub use input_message::*;
 
@@ -109,6 +115,14 @@ impl Global {
         let data = self.0.read().await;
         f(&data.input_sources)
     }
+
+    pub async fn get_event_tx(&self) -> broadcast::Sender<Event> {
+        self.0.read().await.event_tx.clone()
+    }
+
+    pub async fn subscribe_events(&self) -> broadcast::Receiver<Event> {
+        self.0.read().await.event_tx.subscribe()
+    }
 }
 
 pub struct GlobalData {
@@ -117,11 +131,13 @@ pub struct GlobalData {
     next_input_source_id: usize,
     config: Config,
     instances: BTreeMap<i32, InstanceHandle>,
+    event_tx: broadcast::Sender<Event>,
 }
 
 impl GlobalData {
     pub fn new(config: &Config) -> Self {
         let (input_tx, _) = broadcast::channel(4);
+        let (event_tx, _) = broadcast::channel(4);
 
         Self {
             input_tx,
@@ -129,6 +145,7 @@ impl GlobalData {
             next_input_source_id: 1,
             config: config.clone(),
             instances: Default::default(),
+            event_tx,
         }
     }
 

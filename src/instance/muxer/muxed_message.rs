@@ -18,6 +18,14 @@ impl MuxedMessage {
     }
 }
 
+impl std::ops::Deref for MuxedMessage {
+    type Target = MuxedMessageData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum MuxedMessageData {
     SolidColor {
@@ -35,6 +43,23 @@ pub enum MuxedMessageData {
         duration: Option<chrono::Duration>,
         led_colors: Arc<Vec<Color>>,
     },
+}
+
+impl MuxedMessageData {
+    pub fn priority(&self) -> i32 {
+        match self {
+            MuxedMessageData::SolidColor { priority, .. } => *priority,
+            MuxedMessageData::Image { priority, .. } => *priority,
+            MuxedMessageData::LedColors { priority, .. } => *priority,
+        }
+    }
+
+    pub fn color(&self) -> Option<Color> {
+        match self {
+            MuxedMessageData::SolidColor { color, .. } => Some(*color),
+            _ => None,
+        }
+    }
 }
 
 impl From<InputMessageData> for MuxedMessageData {

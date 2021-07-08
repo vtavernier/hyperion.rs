@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::{
     api::types::PriorityInfo,
-    global::{Global, InputMessage},
+    global::{Event, Global, InputMessage, InstanceEventKind},
     models::{Color, InstanceConfig},
     servers::{self, ServerHandle},
 };
@@ -44,9 +44,12 @@ pub struct Instance {
     handle_rx: mpsc::Receiver<InstanceMessage>,
     receiver: broadcast::Receiver<InputMessage>,
     local_receiver: mpsc::Receiver<InputMessage>,
+    event_tx: broadcast::Sender<Event>,
     muxer: PriorityMuxer,
     core: Core,
     _boblight_server: Option<Result<ServerHandle, std::io::Error>>,
+    // Is the instance currently active
+    active: bool,
 }
 
 impl Instance {
@@ -106,6 +109,8 @@ impl Instance {
             None
         };
 
+        let event_tx = global.get_event_tx().await;
+
         (
             Self {
                 config,
@@ -113,9 +118,11 @@ impl Instance {
                 handle_rx,
                 receiver,
                 local_receiver,
+                event_tx,
                 muxer,
                 core,
                 _boblight_server,
+                active: false,
             },
             handle,
         )
@@ -124,15 +131,39 @@ impl Instance {
     async fn on_input_message(&mut self, message: InputMessage) {
         if let Some(message) = self.muxer.handle_message(message).await {
             // The message triggered a muxing update
-            self.core.handle_message(message);
+            self.on_muxed_message(message);
         }
+    }
+
+    fn on_muxed_message(&mut self, message: MuxedMessage) {
+        if self.active {
+            if message.priority() == muxer::MAX_PRIORITY
+                && message.color() == Some(Color::new(0, 0, 0))
+            {
+                self.active = false;
+                self.event_tx
+                    .send(Event::instance(self.id(), InstanceEventKind::Deactivate))
+                    .unwrap();
+            }
+        } else {
+            if message.priority() != muxer::MAX_PRIORITY
+                || message.color() != Some(Color::new(0, 0, 0))
+            {
+                self.active = true;
+                self.event_tx
+                    .send(Event::instance(self.id(), InstanceEventKind::Activate))
+                    .unwrap();
+            }
+        }
+
+        self.core.handle_message(message);
     }
 
     pub fn id(&self) -> i32 {
         self.config.instance.id
     }
 
-    async fn handle_instance_message(&mut self, message: InstanceMessage) {
+    async fn handle_instance_message(&mut self, message: InstanceMessage) -> InstanceControl {
         // ok: the instance shouldn't care if the receiver dropped
 
         match message {
@@ -142,7 +173,13 @@ impl Instance {
             InstanceMessage::Config(tx) => {
                 tx.send(self.config.clone()).ok();
             }
+            InstanceMessage::Stop(tx) => {
+                tx.send(()).ok();
+                return InstanceControl::Break;
+            }
         }
+
+        InstanceControl::Continue
     }
 
     #[instrument]
@@ -188,7 +225,7 @@ impl Instance {
 
                     // Muxer update completed
                     if let Some(message) = message {
-                        self.core.handle_message(message);
+                        self.on_muxed_message(message);
                     }
                 },
                 led_data = self.core.update() => {
@@ -201,7 +238,9 @@ impl Instance {
                     trace!(message = ?message, "handle_rx msg");
 
                     if let Some(message) = message {
-                        self.handle_instance_message(message).await;
+                        if InstanceControl::Break == self.handle_instance_message(message).await {
+                            break Ok(());
+                        }
                     } else {
                         // If the handle is dropped, it means the instance was unregistered
                         break Ok(());
@@ -248,10 +287,17 @@ impl From<Result<Device, DeviceError>> for InstanceDevice {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum InstanceControl {
+    Continue,
+    Break,
+}
+
 #[derive(Debug)]
 enum InstanceMessage {
     PriorityInfo(oneshot::Sender<Vec<PriorityInfo>>),
     Config(oneshot::Sender<Arc<InstanceConfig>>),
+    Stop(oneshot::Sender<()>),
 }
 
 #[derive(Clone)]
@@ -297,6 +343,12 @@ impl InstanceHandle {
     pub async fn config(&self) -> Result<Arc<InstanceConfig>, InstanceHandleError> {
         let (tx, rx) = oneshot::channel();
         self.tx.send(InstanceMessage::Config(tx)).await?;
+        Ok(rx.await?)
+    }
+
+    pub async fn stop(&self) -> Result<(), InstanceHandleError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(InstanceMessage::Stop(tx)).await?;
         Ok(rx.await?)
     }
 }

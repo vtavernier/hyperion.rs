@@ -1051,9 +1051,31 @@ impl Default for WebConfig {
     }
 }
 
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub struct Hooks {
+    /// Command to run when an instance is started. HYPERION_INSTANCE_ID environment variable
+    /// will hold the instance id.
+    pub instance_start: Vec<String>,
+    /// Command to run when an instance is stopped. HYPERION_INSTANCE_ID environment variable
+    /// will hold the instance id.
+    pub instance_stop: Vec<String>,
+    /// Command to run when an instance is activated. HYPERION_INSTANCE_ID environment variable
+    /// will hold the instance id.
+    pub instance_activate: Vec<String>,
+    /// Command to run when an instance is deactivated. HYPERION_INSTANCE_ID environment variable
+    /// will hold the instance id.
+    pub instance_deactivate: Vec<String>,
+    /// Command to run when hyperion.rs starts
+    pub start: Vec<String>,
+    /// Command to run when hyperion.rs stops
+    pub stop: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, EnumDiscriminants, Deserialize)]
 #[strum_discriminants(name(SettingKind), derive(EnumString))]
 pub enum SettingData {
+    // hyperion.ng settings
     BackgroundEffect(BackgroundEffect),
     BlackBorderDetector(BlackBorderDetector),
     BoblightServer(BoblightServer),
@@ -1075,6 +1097,8 @@ pub enum SettingData {
     ProtoServer(ProtoServer),
     Smoothing(Smoothing),
     WebConfig(WebConfig),
+    // hyperion.rs settings
+    Hooks(Hooks),
 }
 
 impl Validate for SettingData {
@@ -1101,6 +1125,7 @@ impl Validate for SettingData {
             SettingData::ProtoServer(setting) => setting.validate(),
             SettingData::Smoothing(setting) => setting.validate(),
             SettingData::WebConfig(setting) => setting.validate(),
+            SettingData::Hooks(setting) => setting.validate(),
         }
     }
 }
@@ -1143,6 +1168,7 @@ impl TryFrom<db_models::DbSetting> for Setting {
             "protoServer" => SettingData::ProtoServer(serde_json::from_str(&db.config)?),
             "smoothing" => SettingData::Smoothing(serde_json::from_str(&db.config)?),
             "webConfig" => SettingData::WebConfig(serde_json::from_str(&db.config)?),
+            "hooks" => SettingData::Hooks(serde_json::from_str(&db.config)?),
             other => panic!("unsupported setting type: {}", other),
         };
 
@@ -1310,6 +1336,7 @@ pub struct GlobalConfig {
     pub network: Network,
     pub proto_server: ProtoServer,
     pub web_config: WebConfig,
+    pub hooks: Hooks,
 }
 
 impl From<GlobalConfigCreator> for GlobalConfig {
@@ -1325,6 +1352,7 @@ impl From<GlobalConfigCreator> for GlobalConfig {
             network: creator.network.unwrap_or_default(),
             proto_server: creator.proto_server.unwrap_or_default(),
             web_config: creator.web_config.unwrap_or_default(),
+            hooks: creator.hooks.unwrap_or_default(),
         }
     }
 }
@@ -1341,6 +1369,7 @@ struct GlobalConfigCreator {
     network: Option<Network>,
     proto_server: Option<ProtoServer>,
     web_config: Option<WebConfig>,
+    hooks: Option<Hooks>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
@@ -1653,6 +1682,9 @@ impl Config {
                 }
                 SettingData::WebConfig(config) => {
                     global.web_config = Some(config);
+                }
+                SettingData::Hooks(config) => {
+                    global.hooks = Some(config);
                 }
             }
         }

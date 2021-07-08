@@ -30,6 +30,10 @@ Currently implemented features:
 * JSON, Protobuf, Flatbuffers and Boblight server
 * Black border detector, color channel adjustments, smoothing
 
+Extra features not available in hyperion.ng:
+
+* Hooks (global start, stop, and instance start, stop, activate, deactivate)
+
 ## Configuration
 
 ### Migrating your settings
