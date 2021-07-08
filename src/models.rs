@@ -314,9 +314,7 @@ macro_rules! impl_device_config {
 pub struct Dummy {
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
-    #[serde(default = "Default::default")]
     pub rewrite_time: u32,
-    #[serde(default = "Default::default")]
     pub latch_time: u32,
 }
 
