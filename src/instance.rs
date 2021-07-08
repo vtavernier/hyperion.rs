@@ -6,11 +6,10 @@ use tokio::{
     sync::{broadcast, mpsc, oneshot},
 };
 
-use crate::api::types::PriorityInfo;
-use crate::models::Color;
 use crate::{
+    api::types::PriorityInfo,
     global::{Global, InputMessage},
-    models::InstanceConfig,
+    models::{Color, InstanceConfig},
     servers::{self, ServerHandle},
 };
 
