@@ -160,14 +160,14 @@ impl ToLeds for ClassicLedParams {
         self.create_left_leds(&mut leds);
 
         // Check LED gap pos
-        let ledsgpos = if self.ledsgpos + self.ledsglength > leds.len() as _ {
+        let ledsgpos = if self.ledsgpos + self.ledsglength > leds.len() as u32 {
             (leds.len() as isize - self.ledsglength as isize).max(0) as usize
         } else {
             self.ledsglength as usize
         };
 
         // Check LED gap length
-        let ledsglength = if self.ledsglength >= leds.len() as _ {
+        let ledsglength = if self.ledsglength >= leds.len() as u32 {
             leds.len() as isize - self.ledsglength as isize - 1
         } else {
             self.ledsglength as _

@@ -170,9 +170,9 @@ impl TryFrom<(Vec<u8>, u32, u32)> for RawImage {
             return Err(RawImageError::ZeroWidth);
         } else if height == 0 {
             return Err(RawImageError::ZeroHeight);
-        } else if width >= u16::MAX as _ {
+        } else if width >= u16::MAX as u32 {
             return Err(RawImageError::InvalidWidth);
-        } else if height >= u16::MAX as _ {
+        } else if height >= u16::MAX as u32 {
             return Err(RawImageError::InvalidHeight);
         }
 
