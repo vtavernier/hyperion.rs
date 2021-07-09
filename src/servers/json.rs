@@ -69,6 +69,7 @@ pub async fn handle_client(
         trace!(response = ?reply, "sending response");
 
         writer.send(reply).await?;
+        writer.flush().await?;
     }
 
     Ok(())

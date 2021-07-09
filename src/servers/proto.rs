@@ -79,6 +79,7 @@ pub async fn handle_client(
         };
 
         writer.send(reply).await?;
+        writer.flush().await?;
     }
 
     Ok(())

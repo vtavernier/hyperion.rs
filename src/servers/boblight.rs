@@ -54,6 +54,7 @@ pub async fn handle_client(
                 Ok(response) => {
                     if let Some(response) = response {
                         writer.send(response).await?;
+                        writer.flush().await?;
                     }
                 }
                 Err(error) => {

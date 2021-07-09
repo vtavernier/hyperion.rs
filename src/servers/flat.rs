@@ -103,6 +103,7 @@ pub async fn handle_client(
 
         trace!(response = ?reply, "sending");
         writer.send(reply).await?;
+        writer.flush().await?;
     }
 
     Ok(())
