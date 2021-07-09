@@ -38,6 +38,19 @@ pub enum InstanceError {
     Recv(#[from] broadcast::error::RecvError),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ActiveState {
+    Inactive,
+    Active,
+    Deactivating,
+}
+
+impl Default for ActiveState {
+    fn default() -> Self {
+        Self::Inactive
+    }
+}
+
 pub struct Instance {
     config: Arc<InstanceConfig>,
     device: InstanceDevice,
@@ -48,8 +61,7 @@ pub struct Instance {
     muxer: PriorityMuxer,
     core: Core,
     _boblight_server: Option<Result<ServerHandle, std::io::Error>>,
-    // Is the instance currently active
-    active: bool,
+    active_state: ActiveState,
 }
 
 impl Instance {
@@ -122,7 +134,7 @@ impl Instance {
                 muxer,
                 core,
                 _boblight_server,
-                active: false,
+                active_state: ActiveState::default(),
             },
             handle,
         )
@@ -136,23 +148,23 @@ impl Instance {
     }
 
     fn on_muxed_message(&mut self, message: MuxedMessage) {
-        if self.active {
+        if self.active_state == ActiveState::Active {
             if message.priority() == muxer::MAX_PRIORITY
                 && message.color() == Some(Color::new(0, 0, 0))
             {
-                self.active = false;
-                self.event_tx
-                    .send(Event::instance(self.id(), InstanceEventKind::Deactivate))
-                    .unwrap();
+                self.active_state = ActiveState::Deactivating;
             }
         } else {
             if message.priority() != muxer::MAX_PRIORITY
                 || message.color() != Some(Color::new(0, 0, 0))
             {
-                self.active = true;
-                self.event_tx
-                    .send(Event::instance(self.id(), InstanceEventKind::Activate))
-                    .unwrap();
+                if std::mem::replace(&mut self.active_state, ActiveState::Active)
+                    == ActiveState::Inactive
+                {
+                    self.event_tx
+                        .send(Event::instance(self.id(), InstanceEventKind::Activate))
+                        .unwrap();
+                }
             }
         }
 
@@ -228,11 +240,19 @@ impl Instance {
                         self.on_muxed_message(message);
                     }
                 },
-                led_data = self.core.update() => {
+                (led_data, update) = self.core.update() => {
+                    trace!("core update");
+
                     // LED data changed
                     self.device.set_led_data(led_data).await?;
 
-                    trace!("core update");
+                    if update == SmoothingUpdate::Settled &&
+                        self.active_state == ActiveState::Deactivating {
+                        self.active_state = ActiveState::Inactive;
+                        self.event_tx
+                            .send(Event::instance(self.id(), InstanceEventKind::Deactivate))
+                            .unwrap();
+                    }
                 },
                 message = self.handle_rx.recv() => {
                     trace!(message = ?message, "handle_rx msg");

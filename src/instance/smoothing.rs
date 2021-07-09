@@ -31,7 +31,7 @@ impl Smoothing {
     }
 
     /// Given the current time, prepare the next update
-    fn plan_update(&mut self, now: Instant) {
+    fn plan_update(&mut self, now: Instant) -> SmoothingUpdate {
         if self.config.enable && now < self.target_time {
             // Smoothing enabled, the continuous update should happen at that time
             let next_update = self.next_update.unwrap_or(
@@ -82,6 +82,12 @@ impl Smoothing {
         for (src, dst) in self.current_data.iter().zip(self.led_data.iter_mut()) {
             *dst = crate::color::color_to8(*src);
         }
+
+        if self.next_update.is_some() {
+            SmoothingUpdate::Running
+        } else {
+            SmoothingUpdate::Settled
+        }
     }
 
     pub fn set_target(&mut self, color_data: &[models::Color16]) {
@@ -96,7 +102,7 @@ impl Smoothing {
         self.plan_update(now);
     }
 
-    pub async fn update(&mut self) -> &[models::Color] {
+    pub async fn update(&mut self) -> (&[models::Color], SmoothingUpdate) {
         if let Some(next_update) = self.next_update {
             // Wait for the right update time
             if next_update > Instant::now() {
@@ -105,12 +111,18 @@ impl Smoothing {
 
             // We waited until the update time, return the result and plan the next update
             self.next_update = None;
-            self.plan_update(Instant::now());
+            let update = self.plan_update(Instant::now());
 
-            &self.led_data
+            (&self.led_data, update)
         } else {
             // No update pending
             futures::future::pending().await
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmoothingUpdate {
+    Running,
+    Settled,
 }

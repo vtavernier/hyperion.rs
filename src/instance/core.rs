@@ -4,7 +4,7 @@ use crate::{
     models::{Color, Color16, InstanceConfig, Leds},
 };
 
-use super::{BlackBorderDetector, MuxedMessage, MuxedMessageData, Smoothing};
+use super::{BlackBorderDetector, MuxedMessage, MuxedMessageData, Smoothing, SmoothingUpdate};
 
 /// Core part of an instance
 ///
@@ -115,7 +115,7 @@ impl Core {
         self.smoothing.set_target(&self.color_data);
     }
 
-    pub async fn update(&mut self) -> &[Color] {
+    pub async fn update(&mut self) -> (&[Color], SmoothingUpdate) {
         self.smoothing.update().await
     }
 }
