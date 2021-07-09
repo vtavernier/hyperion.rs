@@ -33,6 +33,11 @@ pub struct Session {
 impl Session {
     async fn json_api(&mut self, global: &Global) -> Result<&mut ClientConnection, SessionError> {
         if self.json_api.is_none() {
+            // Generate a session ID
+            if self.id.is_nil() {
+                self.id = uuid::Uuid::new_v4();
+            }
+
             // Can't use SocketAddr, see https://github.com/seanmonstar/warp/issues/830
             self.json_api = Some(ClientConnection::new(
                 global
@@ -157,18 +162,10 @@ impl<T: Reply> WithSession<T> {
     pub async fn new(reply: T, instance: SessionInstance) -> Self {
         let id = instance.session.read().await.id;
 
-        let set_cookie = if id.is_nil() {
-            let mut session = instance.session.write().await;
+        let set_cookie = if !instance.sessions.read().await.contains_key(&id) {
+            let mut sessions = instance.sessions.write().await;
 
-            if session.id == id {
-                // Still the same ID after locking for write, so we can generate a new one
-                let id = uuid::Uuid::new_v4();
-                session.id = id;
-                instance
-                    .sessions
-                    .write()
-                    .await
-                    .insert(id, instance.session.clone());
+            if sessions.insert(id, instance.session.clone()).is_none() {
                 Some(id.to_string())
             } else {
                 // Not the same ID, another request set the cookie first
