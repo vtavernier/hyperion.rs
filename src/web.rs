@@ -4,6 +4,7 @@ use futures::{Future, SinkExt, StreamExt};
 use warp::{http::StatusCode, path::FullPath, Filter, Rejection};
 
 use crate::{
+    api::json::message,
     global::{Global, Paths},
     models::WebConfig,
 };
@@ -88,10 +89,34 @@ pub async fn bind(
                 })),
     );
 
-    let json_rpc = warp::path("json-rpc").map(|| {
-        // TODO: Implement JSON RPC
-        warp::reply::with_status("unimplemented!", StatusCode::NOT_IMPLEMENTED)
-    });
+    let json_rpc = warp::path("json-rpc")
+        .and(warp::body::json())
+        .and(warp::filters::header::optional("Authorization"))
+        .and(session_store.request())
+        .and(warp::filters::addr::remote())
+        .and(warp::any().map(move || global.clone()))
+        .and_then(
+            |request: message::HyperionMessage,
+             _authorization: Option<String>,
+             session: SessionInstance,
+             _remote: Option<SocketAddr>,
+             global: Global| {
+                async move {
+                    let reply = warp::reply::json(
+                        &session
+                            .session()
+                            .write()
+                            .await
+                            .handle_request(&global, request)
+                            .await,
+                    );
+
+                    Ok::<_, Rejection>((reply, session))
+                }
+            },
+        )
+        .untuple_one()
+        .and_then(reply_session);
 
     let files = warp::fs::dir(paths.resolve_path(if config.document_root.is_empty() {
         WebConfig::DEFAULT_DOCUMENT_ROOT

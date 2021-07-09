@@ -5,7 +5,10 @@ use tokio::sync::RwLock;
 use warp::{ws::Message, Filter, Rejection, Reply};
 
 use crate::{
-    api::json::{message::HyperionMessage, ClientConnection, JsonApiError},
+    api::json::{
+        message::{HyperionMessage, HyperionResponse},
+        ClientConnection, JsonApiError,
+    },
     global::{Global, InputSourceError},
 };
 
@@ -93,6 +96,35 @@ impl Session {
             }
             Err(error) => Some(self.error_message(error)),
         }
+    }
+
+    #[instrument(skip(global, request))]
+    pub async fn handle_request(
+        &mut self,
+        global: &Global,
+        request: HyperionMessage,
+    ) -> HyperionResponse {
+        trace!(request = ?request, "JSON RPC request");
+
+        let tan = request.tan;
+        let api = match self.json_api(global).await {
+            Ok(api) => api,
+            Err(error) => {
+                return HyperionResponse::error(tan, &error);
+            }
+        };
+
+        let response = match api.handle_request(request, global).await {
+            Ok(None) => HyperionResponse::success(tan),
+            Ok(Some(response)) => response,
+            Err(error) => {
+                error!(error =  %error, "error processing request");
+                HyperionResponse::error(tan, &error)
+            }
+        };
+
+        trace!(response = ?response, "ws response");
+        response
     }
 }
 
