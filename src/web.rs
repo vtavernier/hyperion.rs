@@ -17,7 +17,7 @@ pub async fn bind(
     config: &WebConfig,
     paths: &Paths,
 ) -> Result<impl Future<Output = ()>, std::io::Error> {
-    let session_store = SessionStore::new();
+    let session_store = SessionStore::new(config.max_sessions as _);
 
     let ws = warp::ws()
         .and(session_store.request())

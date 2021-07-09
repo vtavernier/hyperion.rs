@@ -1,5 +1,6 @@
-use std::{collections::HashMap, convert::TryInto, fmt::Display, sync::Arc};
+use std::{convert::TryInto, fmt::Display, sync::Arc};
 
+use lru::LruCache;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use warp::{ws::Message, Filter, Rejection, Reply};
@@ -135,9 +136,9 @@ impl Session {
 
 const COOKIE_NAME: &str = "hyperion_rs_sid";
 
-type SessionData = Arc<RwLock<HashMap<uuid::Uuid, Arc<RwLock<Session>>>>>;
+type SessionData = Arc<RwLock<LruCache<uuid::Uuid, Arc<RwLock<Session>>>>>;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct SessionStore {
     sessions: SessionData,
 }
@@ -162,10 +163,10 @@ impl<T: Reply> WithSession<T> {
     pub async fn new(reply: T, instance: SessionInstance) -> Self {
         let id = instance.session.read().await.id;
 
-        let set_cookie = if !instance.sessions.read().await.contains_key(&id) {
+        let set_cookie = if instance.sessions.read().await.peek(&id).is_none() {
             let mut sessions = instance.sessions.write().await;
 
-            if sessions.insert(id, instance.session.clone()).is_none() {
+            if sessions.put(id, instance.session.clone()).is_none() {
                 Some(id.to_string())
             } else {
                 // Not the same ID, another request set the cookie first
@@ -201,8 +202,10 @@ impl<T: Reply> Reply for WithSession<T> {
 }
 
 impl SessionStore {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(max_sessions: usize) -> Self {
+        Self {
+            sessions: Arc::new(RwLock::new(LruCache::new(max_sessions))),
+        }
     }
 
     pub fn request(
@@ -220,7 +223,7 @@ impl SessionStore {
                     {
                         Some(sid) => {
                             // Get the existing session
-                            let session = sessions.read().await.get(&sid).cloned();
+                            let session = sessions.write().await.get(&sid).cloned();
 
                             // Create if the ID is not found
                             let session = if let Some(session) = session {

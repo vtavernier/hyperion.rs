@@ -1035,6 +1035,8 @@ pub struct WebConfig {
     pub crt_path: String,
     pub key_path: String,
     pub key_pass_phrase: String,
+    #[validate(range(min = 1))]
+    pub max_sessions: u32,
 }
 
 impl WebConfig {
@@ -1050,6 +1052,7 @@ impl Default for WebConfig {
             crt_path: String::new(),
             key_path: String::new(),
             key_pass_phrase: String::new(),
+            max_sessions: 4,
         }
     }
 }

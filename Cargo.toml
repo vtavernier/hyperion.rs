@@ -31,6 +31,7 @@ hex = { version = "0.4", features = ["serde"] }
 hostname = "0.3"
 image = { version = "0.23", default-features = false, features = ["png"] }
 lazy_static = "1.4"
+lru = "0.6"
 num_cpus = "1.13"
 palette = { version = "0.5", features = ["serializing"] }
 parse-display = "0.5"
