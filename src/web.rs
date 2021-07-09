@@ -28,7 +28,7 @@ pub async fn bind(
         .map(
             |ws: warp::ws::Ws,
              session: SessionInstance,
-             remote: Option<SocketAddr>,
+             _remote: Option<SocketAddr>,
              global: Global| {
                 (
                     ws.on_upgrade({
@@ -40,11 +40,8 @@ pub async fn bind(
 
                             async move {
                                 while let Some(result) = rx.next().await {
-                                    if let Some(message) = session
-                                        .write()
-                                        .await
-                                        .handle_result(&global, remote.unwrap(), result)
-                                        .await
+                                    if let Some(message) =
+                                        session.write().await.handle_result(&global, result).await
                                     {
                                         if let Err(error) = tx.send(message).await {
                                             warn!(error = %error, "websocket error");

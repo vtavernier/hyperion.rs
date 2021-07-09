@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto, fmt::Display, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, convert::TryInto, fmt::Display, sync::Arc};
 
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -28,16 +28,15 @@ pub struct Session {
 }
 
 impl Session {
-    async fn json_api(
-        &mut self,
-        global: &Global,
-        addr: SocketAddr,
-    ) -> Result<&mut ClientConnection, SessionError> {
+    async fn json_api(&mut self, global: &Global) -> Result<&mut ClientConnection, SessionError> {
         if self.json_api.is_none() {
+            // Can't use SocketAddr, see https://github.com/seanmonstar/warp/issues/830
             self.json_api = Some(ClientConnection::new(
                 global
                     .register_input_source(
-                        crate::global::InputSourceName::Web { peer_addr: addr },
+                        crate::global::InputSourceName::Web {
+                            session_id: self.id,
+                        },
                         None,
                     )
                     .await?,
@@ -50,10 +49,9 @@ impl Session {
     async fn handle_message(
         &mut self,
         global: &Global,
-        addr: SocketAddr,
         message: Message,
     ) -> Result<Message, SessionError> {
-        let json_api = self.json_api(global, addr).await?;
+        let json_api = self.json_api(global).await?;
 
         if message.is_text() {
             let request: HyperionMessage = serde_json::from_str(message.to_str().unwrap())?;
@@ -74,7 +72,6 @@ impl Session {
     pub async fn handle_result(
         &mut self,
         global: &Global,
-        addr: SocketAddr,
         result: Result<Message, warp::Error>,
     ) -> Option<Message> {
         match result {
@@ -85,7 +82,7 @@ impl Session {
                     return None;
                 }
 
-                let response = self.handle_message(&global, addr, message).await;
+                let response = self.handle_message(&global, message).await;
 
                 trace!(response = ?response, "ws response");
 

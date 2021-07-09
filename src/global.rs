@@ -53,8 +53,8 @@ pub enum InputSourceName {
     Json { peer_addr: SocketAddr },
     #[display("Protobuf({peer_addr})")]
     Protobuf { peer_addr: SocketAddr },
-    #[display("Web({peer_addr})")]
-    Web { peer_addr: SocketAddr },
+    #[display("Web({session_id})")]
+    Web { session_id: uuid::Uuid },
     #[display("PriorityMuxer")]
     PriorityMuxer,
 }
