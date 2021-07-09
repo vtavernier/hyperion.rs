@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 
 use crate::{
     api::flat::{self, message, FlatApiError},
-    global::{Global, InputMessage, InputSourceHandle},
+    global::{Global, InputMessage, InputSourceHandle, PriorityGuard},
 };
 
 #[derive(Debug, Error)]
@@ -51,12 +51,13 @@ async fn handle_request(
     request_bytes: bytes::BytesMut,
     source: &mut Option<InputSourceHandle<InputMessage>>,
     global: &Global,
+    priority_guard: &mut Option<PriorityGuard>,
 ) -> Result<(), FlatServerError> {
     let request = message::root_as_request(request_bytes.as_ref())?;
 
     trace!(request = ?request.command_type(), "processing");
 
-    Ok(flat::handle_request(peer_addr, request, source, global).await?)
+    Ok(flat::handle_request(peer_addr, request, source, global, priority_guard).await?)
 }
 
 #[instrument(skip(socket, global))]
@@ -73,6 +74,7 @@ pub async fn handle_client(
     let (mut writer, mut reader) = framed.split();
 
     let mut source = None;
+    let mut priority_guard = None;
     let mut builder = flatbuffers::FlatBufferBuilder::new();
 
     while let Some(request_bytes) = reader.next().await {
@@ -86,7 +88,15 @@ pub async fn handle_client(
 
         builder.reset();
 
-        let reply = match handle_request(peer_addr, request_bytes, &mut source, &global).await {
+        let reply = match handle_request(
+            peer_addr,
+            request_bytes,
+            &mut source,
+            &global,
+            &mut priority_guard,
+        )
+        .await
+        {
             Ok(()) => {
                 if let Some(source) = source.as_ref() {
                     register_response(&mut builder, source.priority().unwrap())

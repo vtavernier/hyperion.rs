@@ -9,7 +9,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     api::proto::{self, message, ProtoApiError},
-    global::{Global, InputSourceName},
+    global::{Global, InputSourceName, PriorityGuard},
 };
 
 mod codec;
@@ -58,6 +58,8 @@ pub async fn handle_client(
         .await
         .unwrap();
 
+    let mut priority_guard = PriorityGuard::new_broadcast(&source);
+
     while let Some(request) = reader.next().await {
         let request = match request {
             Ok(rb) => rb,
@@ -69,14 +71,15 @@ pub async fn handle_client(
 
         trace!("({}) got request: {:?}", peer_addr, request);
 
-        let reply = match proto::handle_request(peer_addr.clone(), request, &source) {
-            Ok(()) => success_response(peer_addr),
-            Err(error) => {
-                error!("({}) error processing request: {}", peer_addr, error);
+        let reply =
+            match proto::handle_request(peer_addr.clone(), request, &source, &mut priority_guard) {
+                Ok(()) => success_response(peer_addr),
+                Err(error) => {
+                    error!("({}) error processing request: {}", peer_addr, error);
 
-                error_response(peer_addr, error)
-            }
-        };
+                    error_response(peer_addr, error)
+                }
+            };
 
         writer.send(reply).await?;
         writer.flush().await?;

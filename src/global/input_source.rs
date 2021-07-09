@@ -50,6 +50,10 @@ impl<T: Message> InputSource<T> {
     ) -> Result<usize, broadcast::error::SendError<T>> {
         self.tx.send(T::new(self.id, component, message))
     }
+
+    pub fn channel(&self) -> &broadcast::Sender<T> {
+        &self.tx
+    }
 }
 
 pub struct InputSourceHandle<T: Message> {

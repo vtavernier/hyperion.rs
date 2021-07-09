@@ -8,7 +8,9 @@ use super::types::i32_to_duration;
 
 use crate::{
     component::ComponentName,
-    global::{Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName},
+    global::{
+        Global, InputMessage, InputMessageData, InputSourceHandle, InputSourceName, PriorityGuard,
+    },
     image::{RawImage, RawImageError},
     models::Color,
 };
@@ -35,6 +37,7 @@ async fn handle_register(
     register: message::Register<'_>,
     source: &mut Option<InputSourceHandle<InputMessage>>,
     global: &Global,
+    priority_guard: &mut Option<PriorityGuard>,
 ) -> Result<(), FlatApiError> {
     let priority = register.priority();
 
@@ -42,29 +45,32 @@ async fn handle_register(
         return Err(FlatApiError::InvalidPriority(priority));
     } else {
         // unwrap: we checked the priority value before
-        *source = Some(
-            global
-                .register_input_source(
-                    InputSourceName::FlatBuffers {
-                        peer_addr,
-                        origin: register.origin().to_owned(),
-                    },
-                    Some(priority),
-                )
-                .await
-                .unwrap(),
-        );
+        let new_source = global
+            .register_input_source(
+                InputSourceName::FlatBuffers {
+                    peer_addr,
+                    origin: register.origin().to_owned(),
+                },
+                Some(priority),
+            )
+            .await
+            .unwrap();
+
+        // Update priority guard
+        *priority_guard = Some(PriorityGuard::new_broadcast(&new_source));
+        *source = Some(new_source);
     }
 
     Ok(())
 }
 
-#[instrument(skip(request, source, global))]
+#[instrument(skip(request, source, global, priority_guard))]
 pub async fn handle_request(
     peer_addr: SocketAddr,
     request: message::Request<'_>,
     source: &mut Option<InputSourceHandle<InputMessage>>,
     global: &Global,
+    priority_guard: &mut Option<PriorityGuard>,
 ) -> Result<(), FlatApiError> {
     if let Some(handle) = source.as_ref() {
         // unwrap: we set a priority when we got the register call
@@ -127,13 +133,13 @@ pub async fn handle_request(
                 },
             )?;
         } else if let Some(register) = request.command_as_register() {
-            return handle_register(peer_addr, register, source, global).await;
+            return handle_register(peer_addr, register, source, global, priority_guard).await;
         } else {
             return Err(FlatApiError::UnknownCommand);
         }
     } else {
         if let Some(register) = request.command_as_register() {
-            return handle_register(peer_addr, register, source, global).await;
+            return handle_register(peer_addr, register, source, global, priority_guard).await;
         } else {
             return Err(FlatApiError::Unregistered);
         }

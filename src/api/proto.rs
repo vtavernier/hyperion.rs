@@ -7,7 +7,7 @@ use super::types::i32_to_duration;
 
 use crate::{
     component::ComponentName,
-    global::{InputMessage, InputMessageData, InputSourceHandle},
+    global::{InputMessage, InputMessageData, InputSourceHandle, PriorityGuard},
     image::{RawImage, RawImageError},
     models::Color,
 };
@@ -24,13 +24,31 @@ pub enum ProtoApiError {
     Broadcast(#[from] tokio::sync::broadcast::error::SendError<InputMessage>),
     #[error("missing command data in protobuf frame")]
     MissingCommand,
+    #[error("the priority {0} is not in the valid range between 100 and 199")]
+    InvalidPriority(i32),
 }
 
-#[instrument(skip(request, source))]
+fn validate_priority(
+    priority: i32,
+    source: &InputSourceHandle<InputMessage>,
+    priority_guard: &mut PriorityGuard,
+) -> Result<i32, ProtoApiError> {
+    if priority < 100 || priority >= 200 {
+        return Err(ProtoApiError::InvalidPriority(priority));
+    }
+
+    // Re-creating the priority guard drops the old value, thus clearing the previous priority
+    *priority_guard = PriorityGuard::new_broadcast(source);
+
+    Ok(priority)
+}
+
+#[instrument(skip(request, source, priority_guard))]
 pub fn handle_request(
     peer_addr: SocketAddr,
     request: HyperionRequest,
     source: &InputSourceHandle<InputMessage>,
+    priority_guard: &mut PriorityGuard,
 ) -> Result<(), ProtoApiError> {
     match request.command() {
         message::hyperion_request::Command::Clearall => {
@@ -64,11 +82,13 @@ pub fn handle_request(
                 ((color & 0x00FF_0000) >> 16) as u8,
             );
 
+            let priority = validate_priority(color_request.priority, source, priority_guard)?;
+
             // Update state
             source.send(
                 ComponentName::ProtoServer,
                 InputMessageData::SolidColor {
-                    priority: color_request.priority,
+                    priority,
                     duration: i32_to_duration(color_request.duration),
                     color: Color::from_components(color),
                 },
@@ -86,11 +106,13 @@ pub fn handle_request(
                 .map_err(|_| RawImageError::InvalidHeight)?;
             let raw_image = RawImage::try_from((image_request.imagedata.to_vec(), width, height))?;
 
+            let priority = validate_priority(image_request.priority, source, priority_guard)?;
+
             // Update state
             source.send(
                 ComponentName::ProtoServer,
                 InputMessageData::Image {
-                    priority: image_request.priority,
+                    priority,
                     duration: i32_to_duration(image_request.duration),
                     image: Arc::new(raw_image),
                 },

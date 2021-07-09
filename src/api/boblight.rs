@@ -3,7 +3,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
-    global::{InputMessage, InputMessageData, InputSourceHandle, Message},
+    global::{InputMessage, InputMessageData, InputSourceHandle, Message, PriorityGuard},
     instance::{InstanceHandle, InstanceHandleError},
     models::Color,
 };
@@ -23,6 +23,7 @@ pub enum BoblightApiError {
 
 pub struct ClientConnection {
     handle: InputSourceHandle<InputMessage>,
+    priority_guard: PriorityGuard,
     led_colors: Vec<Color>,
     priority: i32,
     instance: InstanceHandle,
@@ -34,8 +35,11 @@ impl ClientConnection {
         led_count: usize,
         instance: InstanceHandle,
     ) -> Self {
+        let priority_guard = PriorityGuard::new_mpsc(instance.input_channel().clone(), &handle);
+
         Self {
             handle,
+            priority_guard,
             led_colors: vec![Color::default(); led_count],
             priority: 128,
             instance,
@@ -43,9 +47,8 @@ impl ClientConnection {
     }
 
     async fn set_priority(&mut self, priority: i32) {
-        if priority < 128 || priority >= 254 {
-            self.priority = self
-                .instance
+        let new_priority = if priority < 128 || priority >= 254 {
+            self.instance
                 .current_priorities()
                 .await
                 .map(|priorities| {
@@ -78,8 +81,11 @@ impl ClientConnection {
                 })
                 .unwrap_or(128)
         } else {
-            self.priority = priority;
-        }
+            priority
+        };
+
+        self.priority = new_priority;
+        self.priority_guard.set_priority(Some(new_priority));
     }
 
     async fn sync(&self) -> Result<(), BoblightApiError> {

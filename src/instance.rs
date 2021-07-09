@@ -330,6 +330,10 @@ impl InstanceHandle {
         self.id
     }
 
+    pub fn input_channel(&self) -> &mpsc::Sender<InputMessage> {
+        &self.local_tx
+    }
+
     pub async fn send(&self, input: InputMessage) -> Result<(), InstanceHandleError> {
         Ok(self.local_tx.send(input).await?)
     }

@@ -21,6 +21,9 @@ pub use input_source::*;
 mod paths;
 pub use paths::*;
 
+mod priority_guard;
+pub use priority_guard::*;
+
 use crate::{component::ComponentName, instance::InstanceHandle, models::Config};
 
 pub trait Message: Sized {
@@ -57,6 +60,17 @@ pub enum InputSourceName {
     Web { session_id: uuid::Uuid },
     #[display("PriorityMuxer")]
     PriorityMuxer,
+}
+
+impl InputSourceName {
+    pub fn component(&self) -> ComponentName {
+        match self {
+            InputSourceName::Boblight { .. } => ComponentName::BoblightServer,
+            InputSourceName::FlatBuffers { .. } => ComponentName::FlatbufServer,
+            InputSourceName::Protobuf { .. } => ComponentName::ProtoServer,
+            _ => ComponentName::All,
+        }
+    }
 }
 
 impl Global {
