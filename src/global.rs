@@ -18,6 +18,9 @@ pub use input_message::*;
 mod input_source;
 pub use input_source::*;
 
+mod paths;
+pub use paths::*;
+
 use crate::{component::ComponentName, instance::InstanceHandle, models::Config};
 
 pub trait Message: Sized {
