@@ -177,6 +177,10 @@ impl ClientConnection {
             }
 
             HyperionCommand::Authorize(message::Authorize { subcommand, .. }) => match subcommand {
+                message::AuthorizeCommand::AdminRequired => {
+                    // TODO: Perform actual authentication flow
+                    return Ok(Some(HyperionResponse::admin_required(request.tan, false)));
+                }
                 message::AuthorizeCommand::TokenRequired => {
                     // TODO: Perform actual authentication flow
                     return Ok(Some(HyperionResponse::token_required(request.tan, false)));

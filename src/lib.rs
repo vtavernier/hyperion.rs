@@ -11,3 +11,4 @@ pub mod instance;
 pub mod models;
 pub mod serde;
 pub mod servers;
+pub mod web;

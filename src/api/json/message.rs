@@ -666,8 +666,15 @@ pub enum HyperionResponseInfo {
     /// Server information response
     #[serde(rename = "serverinfo")]
     ServerInfo(ServerInfo),
+    /// AdminRequired response
+    #[serde(rename = "authorize-adminRequired")]
+    AdminRequired {
+        /// true if admin authentication is required
+        #[serde(rename = "adminRequired")]
+        admin_required: bool,
+    },
     /// TokenRequired response
-    #[serde(rename = "auth-tokenRequired")]
+    #[serde(rename = "authorize-tokenRequired")]
     TokenRequired {
         /// true if an auth token required
         required: bool,
@@ -751,6 +758,10 @@ impl HyperionResponse {
                 hostname: hostname(),
             }),
         )
+    }
+
+    pub fn admin_required(tan: Option<i32>, admin_required: bool) -> Self {
+        Self::success_info(tan, HyperionResponseInfo::AdminRequired { admin_required })
     }
 
     pub fn token_required(tan: Option<i32>, required: bool) -> Self {

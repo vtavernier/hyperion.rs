@@ -140,6 +140,14 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
         None
     };
 
+    // Path resolver
+    let paths = hyperion::global::Paths::new()?;
+
+    // Start the webconfig server
+    let _webconfig_server = tokio::task::spawn(
+        hyperion::web::bind(global.clone(), &config.global.web_config, &paths).await?,
+    );
+
     // Global event handle
     let event_tx = global.get_event_tx().await;
 

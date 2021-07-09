@@ -52,10 +52,7 @@ jobs:
 
       - name: Prepare release
         run: |
-          mkdir -p release/hyperion.rs/bin
-          cp target/${{ matrix.target }}/release/hyperiond release/hyperion.rs/bin/hyperiond-rs
-          cd release
-          tar cJvf hyperion.rs-${{ matrix.target }}.tar.xz hyperion.rs
+          ./ci/prepare-release.sh ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v2
         with:
