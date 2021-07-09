@@ -30,7 +30,7 @@ pub struct PriorityInfo {
     pub origin: String,
     pub active: bool,
     pub visible: bool,
-    #[serde(rename = "RGB", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<LedColor>,
 }
 
