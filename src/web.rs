@@ -93,7 +93,11 @@ pub async fn bind(
         warp::reply::with_status("unimplemented!", StatusCode::NOT_IMPLEMENTED)
     });
 
-    let files = warp::fs::dir(paths.resolve_path(&config.document_root));
+    let files = warp::fs::dir(paths.resolve_path(if config.document_root.is_empty() {
+        WebConfig::DEFAULT_DOCUMENT_ROOT
+    } else {
+        config.document_root.as_str()
+    }));
 
     // TODO: Serve error pages from /errorpages/*
 

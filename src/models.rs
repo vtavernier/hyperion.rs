@@ -1037,11 +1037,14 @@ pub struct WebConfig {
     pub key_pass_phrase: String,
 }
 
+impl WebConfig {
+    pub const DEFAULT_DOCUMENT_ROOT: &'static str = "$ROOT/webconfig";
+}
+
 impl Default for WebConfig {
     fn default() -> Self {
         Self {
-            // TODO: Check document_root
-            document_root: "$ROOT/webconfig".to_owned(),
+            document_root: Self::DEFAULT_DOCUMENT_ROOT.to_owned(),
             port: 8090,
             ssl_port: 8092,
             crt_path: String::new(),
