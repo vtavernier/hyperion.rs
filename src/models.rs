@@ -928,9 +928,13 @@ impl Default for Logger {
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Network {
     pub api_auth: bool,
-    #[serde(default)]
+    #[serde(default, rename = "internetAccessAPI")]
     pub internet_access_api: bool,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "restrictedInternetAccessAPI",
+        alias = "restirctedInternetAccessAPI"
+    )]
     pub restricted_internet_access_api: bool,
     pub ip_whitelist: Vec<String>,
     pub local_api_auth: bool,
