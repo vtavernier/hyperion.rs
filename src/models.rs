@@ -1137,54 +1137,115 @@ impl Validate for SettingData {
 }
 
 #[derive(Debug, Error)]
-pub enum SettingError {
-    #[error("error processing JSON: {0}")]
+pub enum SettingErrorKind {
+    #[error(transparent)]
     Serde(#[from] serde_json::Error),
-    #[error("error parsing date: {0}")]
+    #[error("error parsing date")]
     Chrono(#[from] chrono::ParseError),
-    #[error("validation error: {0}")]
+    #[error(transparent)]
     Validation(#[from] validator::ValidationErrors),
+    #[error("unknown setting type")]
+    UnknownType,
+}
+
+#[derive(Debug)]
+pub struct SettingError {
+    pub kind: SettingErrorKind,
+    pub setting: &'static str,
+    unknown: Option<String>,
+}
+
+impl SettingError {
+    pub fn new(kind: impl Into<SettingErrorKind>, setting: &'static str) -> Self {
+        Self {
+            kind: kind.into(),
+            setting,
+            unknown: None,
+        }
+    }
+
+    pub fn unknown(name: &str) -> Self {
+        Self {
+            kind: SettingErrorKind::UnknownType,
+            setting: "",
+            unknown: Some(name.to_owned()),
+        }
+    }
+}
+
+impl std::error::Error for SettingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.kind.source()
+    }
+}
+
+impl std::fmt::Display for SettingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.unknown {
+            Some(setting) => write!(f, "`{}`: {}", setting, self.kind),
+            None => write!(f, "`{}`: {}", self.setting, self.kind),
+        }
+    }
+}
+
+macro_rules! convert_settings {
+    ($db:ident, $($name:literal => $variant:ident),*) => {
+        match $db.ty.as_str() {
+            $($name => {
+                let config = SettingData::$variant(serde_json::from_str(&$db.config).map_err(|err| {
+                    SettingError::new(err, $name)
+                })?);
+
+                (
+                    match config.validate() {
+                        Ok(_) => Ok(config),
+                        Err(err) => Err(SettingError::new(err, $name)),
+                    }?,
+                    chrono::DateTime::parse_from_rfc3339(&$db.updated_at).map_err(|err| {
+                        SettingError::new(err, $name)
+                    })?.with_timezone(&chrono::Utc)
+                )
+            },)*
+            other => {
+                return Err(SettingError::unknown(other));
+            }
+        }
+    };
 }
 
 impl TryFrom<db_models::DbSetting> for Setting {
     type Error = SettingError;
 
     fn try_from(db: db_models::DbSetting) -> Result<Self, Self::Error> {
-        let config = match db.ty.as_str() {
-            "backgroundEffect" => SettingData::BackgroundEffect(serde_json::from_str(&db.config)?),
-            "blackborderdetector" => {
-                SettingData::BlackBorderDetector(serde_json::from_str(&db.config)?)
-            }
-            "boblightServer" => SettingData::BoblightServer(serde_json::from_str(&db.config)?),
-            "color" => SettingData::ColorAdjustment(serde_json::from_str(&db.config)?),
-            "device" => SettingData::Device(serde_json::from_str(&db.config)?),
-            "effects" => SettingData::Effects(serde_json::from_str(&db.config)?),
-            "flatbufServer" => SettingData::FlatbuffersServer(serde_json::from_str(&db.config)?),
-            "foregroundEffect" => SettingData::ForegroundEffect(serde_json::from_str(&db.config)?),
-            "forwarder" => SettingData::Forwarder(serde_json::from_str(&db.config)?),
-            "framegrabber" => SettingData::Framegrabber(serde_json::from_str(&db.config)?),
-            "general" => SettingData::General(serde_json::from_str(&db.config)?),
-            "grabberV4L2" => SettingData::GrabberV4L2(serde_json::from_str(&db.config)?),
-            "instCapture" => SettingData::InstanceCapture(serde_json::from_str(&db.config)?),
-            "jsonServer" => SettingData::JsonServer(serde_json::from_str(&db.config)?),
-            "ledConfig" => SettingData::LedConfig(serde_json::from_str(&db.config)?),
-            "leds" => SettingData::Leds(serde_json::from_str(&db.config)?),
-            "logger" => SettingData::Logger(serde_json::from_str(&db.config)?),
-            "network" => SettingData::Network(serde_json::from_str(&db.config)?),
-            "protoServer" => SettingData::ProtoServer(serde_json::from_str(&db.config)?),
-            "smoothing" => SettingData::Smoothing(serde_json::from_str(&db.config)?),
-            "webConfig" => SettingData::WebConfig(serde_json::from_str(&db.config)?),
-            "hooks" => SettingData::Hooks(serde_json::from_str(&db.config)?),
-            other => panic!("unsupported setting type: {}", other),
-        };
-
-        config.validate()?;
+        let (config, updated_at) = convert_settings!(db,
+            "backgroundEffect" => BackgroundEffect,
+            "blackborderdetector" => BlackBorderDetector,
+            "boblightServer" => BoblightServer,
+            "color" => ColorAdjustment,
+            "device" => Device,
+            "effects" => Effects,
+            "flatbufServer" => FlatbuffersServer,
+            "foregroundEffect" => ForegroundEffect,
+            "forwarder" => Forwarder,
+            "framegrabber" => Framegrabber,
+            "general" => General,
+            "grabberV4L2" => GrabberV4L2,
+            "instCapture" => InstanceCapture,
+            "jsonServer" => JsonServer,
+            "ledConfig" => LedConfig,
+            "leds" => Leds,
+            "logger" => Logger,
+            "network" => Network,
+            "protoServer" => ProtoServer,
+            "smoothing" => Smoothing,
+            "webConfig" => WebConfig,
+            "hooks" => Hooks
+        );
 
         Ok(Self {
             hyperion_inst: db.hyperion_inst,
             config,
-            updated_at: chrono::DateTime::parse_from_rfc3339(&db.updated_at)?
-                .with_timezone(&chrono::Utc),
+            updated_at,
         })
     }
 }
@@ -1497,21 +1558,21 @@ impl InstanceConfigCreator {
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    #[error("i/o error: {0}")]
+    #[error("i/o error")]
     Io(#[from] std::io::Error),
-    #[error("error querying the database: {0}")]
+    #[error("error querying the database")]
     Sqlx(#[from] sqlx::Error),
-    #[error("error loading instance: {0}")]
+    #[error("error loading instance")]
     Instance(#[from] InstanceError),
-    #[error("error loading setting: {0}")]
+    #[error("error loading setting")]
     Setting(#[from] SettingError),
-    #[error("error loading meta: {0}")]
+    #[error("error loading meta")]
     Meta(#[from] MetaError),
-    #[error("error loading user: {0}")]
+    #[error("error loading user")]
     User(#[from] UserError),
     #[error("missing hyperion_inst field on instance setting {0}")]
     MissingHyperionInst(&'static str),
-    #[error("invalid TOML: {0}")]
+    #[error("invalid TOML")]
     Toml(#[from] toml::de::Error),
     #[error("instance id must be an integer, got {0}")]
     InvalidId(String),
