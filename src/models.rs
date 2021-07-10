@@ -573,6 +573,7 @@ impl Config {
 #[derive(Serialize)]
 struct SerializableConfig<'c> {
     instances: BTreeMap<String, &'c InstanceConfig>,
+    #[serde(flatten)]
     global: &'c GlobalConfig,
     meta: &'c Vec<Meta>,
     users: &'c Vec<User>,
@@ -604,7 +605,7 @@ fn default_users() -> Vec<User> {
 #[derive(Deserialize)]
 struct DeserializableConfig {
     instances: BTreeMap<String, InstanceConfig>,
-    #[serde(default)]
+    #[serde(default, flatten)]
     global: GlobalConfig,
     #[serde(default = "default_meta")]
     meta: Vec<Meta>,
