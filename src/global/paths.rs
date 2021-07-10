@@ -10,11 +10,13 @@ enum ResolvedPaths {
 }
 
 const ROOT_MARKER: &str = "$ROOT";
+const SYSTEM_MARKER: &str = "$SYSTEM";
 
 #[derive(Clone)]
 pub struct Paths {
     mode: ResolvedPaths,
-    root: PathBuf,
+    system_root: PathBuf,
+    user_root: PathBuf,
 }
 
 impl Paths {
@@ -53,7 +55,28 @@ impl Paths {
         None
     }
 
-    pub fn new() -> io::Result<Self> {
+    fn dev_user_root(user_root: Option<PathBuf>, dev_root: &Path) -> PathBuf {
+        if let Some(user_root) = user_root {
+            user_root
+        } else {
+            dev_root.to_owned()
+        }
+    }
+
+    fn prod_user_root(user_root: Option<PathBuf>) -> PathBuf {
+        if let Some(user_root) = user_root {
+            user_root
+        } else {
+            dirs::config_dir()
+                .map(|mut path| {
+                    path.push("hyperion.rs");
+                    path
+                })
+                .unwrap()
+        }
+    }
+
+    pub fn new(user_root: Option<PathBuf>) -> io::Result<Self> {
         // Try to find the current exe
         let proc = std::env::current_exe()?;
 
@@ -63,23 +86,35 @@ impl Paths {
         if let Some(dev_root) = Self::find_dev_root(first_root) {
             debug!(path = %dev_root.display(), "found development root");
 
+            let user_root = Self::dev_user_root(user_root, &dev_root);
+            debug!(path = %user_root.display(), "found user root");
+
             Ok(Self {
                 mode: ResolvedPaths::Development,
-                root: dev_root,
+                system_root: dev_root,
+                user_root,
             })
         } else if let Some(bin_root) = Self::find_bin_root(first_root) {
             debug!(path = %bin_root.display(), "found production root");
 
+            let user_root = Self::prod_user_root(user_root);
+            debug!(path = %user_root.display(), "found user root");
+
             Ok(Self {
                 mode: ResolvedPaths::Production,
-                root: bin_root,
+                system_root: bin_root,
+                user_root,
             })
         } else {
             debug!(path = %first_root.display(), "no root found, using binary");
 
+            let user_root = Self::prod_user_root(user_root);
+            debug!(path = %user_root.display(), "found user root");
+
             Ok(Self {
                 mode: ResolvedPaths::Production,
-                root: first_root.to_owned(),
+                system_root: first_root.to_owned(),
+                user_root,
             })
         }
     }
@@ -96,8 +131,9 @@ impl Paths {
             let mut components = p.components().peekable();
 
             if let Some(component) = components.peek() {
-                if component.as_os_str().to_str() == Some(ROOT_MARKER) {
-                    out_path.extend(&self.root);
+                let component = component.as_os_str().to_str();
+                if component == Some(SYSTEM_MARKER) {
+                    out_path.extend(&self.system_root);
                     components.next();
 
                     if let ResolvedPaths::Development = self.mode {
@@ -112,6 +148,9 @@ impl Paths {
                             }
                         }
                     }
+                } else if component == Some(ROOT_MARKER) {
+                    out_path.extend(&self.user_root);
+                    components.next();
                 }
             }
 

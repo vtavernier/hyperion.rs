@@ -1,50 +1,24 @@
+use std::path::Path;
+
 use sqlx::prelude::*;
+use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqliteConnection;
-use thiserror::Error;
 
 pub mod models;
 
-#[derive(Debug, Error)]
-pub enum DbError {
-    #[error("error connecting to the settings database: {0}")]
-    Connection(#[from] sqlx::Error),
-    #[error("failed to find default path")]
-    InvalidDefaultPath,
-}
+pub type DbError = sqlx::Error;
 
 pub struct Db {
     connection: SqliteConnection,
 }
 
 impl Db {
-    pub async fn try_default(path: Option<&str>) -> Result<Self, DbError> {
-        let default_path;
-        let path = if let Some(path) = path {
-            path
-        } else {
-            default_path = std::env::var("DATABASE_URL")
-                .map(|v| v.to_string())
-                .or_else(|_| {
-                    dirs::home_dir()
-                        .and_then(|path| {
-                            path.join(".config/hyperion.rs/hyperion.db")
-                                .to_str()
-                                .map(str::to_owned)
-                        })
-                        .ok_or_else(|| DbError::InvalidDefaultPath)
-                })?;
-
-            &default_path
-        };
-
-        Ok(Self::connect(path).await?)
-    }
-
-    pub async fn connect(path: &str) -> Result<Self, DbError> {
-        debug!(path = %path, "loading database");
+    pub async fn open(path: &Path) -> Result<Self, DbError> {
+        debug!(path = %path.display(), "loading database");
 
         Ok(Self {
-            connection: SqliteConnection::connect(path).await?,
+            connection: SqliteConnection::connect_with(&SqliteConnectOptions::new().filename(path))
+                .await?,
         })
     }
 }

@@ -119,7 +119,7 @@ pub async fn bind(
         .and_then(reply_session);
 
     let files = warp::fs::dir(paths.resolve_path(if config.document_root.is_empty() {
-        WebConfig::DEFAULT_DOCUMENT_ROOT
+        WebConfig::SYSTEM_DOCUMENT_ROOT
     } else {
         config.document_root.as_str()
     }));

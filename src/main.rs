@@ -13,24 +13,36 @@ struct Opts {
     #[structopt(short, long, parse(from_occurrences))]
     verbose: u32,
     /// Path to the configuration database
-    #[structopt(short, long = "db-path")]
-    database_path: Option<String>,
+    #[structopt(
+        short,
+        long = "db-path",
+        default_value = "$ROOT/hyperion.db",
+        env = "DATABASE_URL"
+    )]
+    database_path: PathBuf,
     /// Path to a TOML config file. Overrides the configuration database
     #[structopt(short, long = "config")]
     config_path: Option<PathBuf>,
     /// Dump the loaded configuration
     #[structopt(long)]
     dump_config: bool,
+    /// Path to the user root folder. Defaults to .config/hyperion.rs (Linux) or
+    /// %APPDATA%\hyperion.rs (Windows)
+    #[structopt(long)]
+    user_root: Option<PathBuf>,
 }
 
 async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
+    // Path resolver
+    let paths = hyperion::global::Paths::new(opts.user_root.clone())?;
+
     // Load configuration
     let config = {
         if let Some(config_path) = opts.config_path.as_deref() {
             hyperion::models::Config::load_file(config_path).await?
         } else {
             // Connect to database
-            let mut db = hyperion::db::Db::try_default(opts.database_path.as_deref()).await?;
+            let mut db = hyperion::db::Db::open(&paths.resolve_path(opts.database_path)).await?;
             hyperion::models::Config::load(&mut db).await?
         }
     };
@@ -139,9 +151,6 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     } else {
         None
     };
-
-    // Path resolver
-    let paths = hyperion::global::Paths::new()?;
 
     // Start the webconfig server
     let _webconfig_server = tokio::task::spawn(
