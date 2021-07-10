@@ -36,7 +36,7 @@ fn default_false() -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Instance {
     #[serde(skip)]
     pub id: i32,
@@ -70,14 +70,14 @@ pub struct Setting {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum EffectType {
     Color,
     Effect,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct BackgroundEffect {
     #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub color: Color,
@@ -99,7 +99,7 @@ impl Default for BackgroundEffect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum BlackBorderDetectorMode {
     Default,
     Classic,
@@ -108,7 +108,7 @@ pub enum BlackBorderDetectorMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct BlackBorderDetector {
     #[serde(default = "default_true")]
     pub enable: bool,
@@ -136,7 +136,7 @@ impl Default for BlackBorderDetector {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct BoblightServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -162,14 +162,14 @@ impl ServerConfig for BoblightServer {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ImageToLedMappingType {
     MulticolorMean,
     UnicolorMean,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct ColorAdjustment {
     pub image_to_led_mapping_type: ImageToLedMappingType,
     #[validate]
@@ -186,7 +186,7 @@ impl Default for ColorAdjustment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChannelAdjustment {
     pub id: String,
     pub leds: String,
@@ -243,7 +243,7 @@ impl Default for ChannelAdjustment {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum ColorOrder {
     Rgb,
     Bgr,
@@ -310,7 +310,7 @@ macro_rules! impl_device_config {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Dummy {
     #[validate(range(min = 1))]
     pub hardware_led_count: u32,
@@ -339,7 +339,7 @@ fn default_ws_spi_rewrite_time() -> u32 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Ws2812Spi {
     #[serde(default = "Default::default")]
     pub color_order: ColorOrder,
@@ -359,7 +359,7 @@ pub struct Ws2812Spi {
 impl_device_config!(Ws2812Spi);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PhilipsHue {
     pub black_lights_timeout: i32,
     pub brightness_factor: f32,
@@ -398,7 +398,7 @@ impl DeviceConfig for PhilipsHue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, IntoStaticStr, Delegate)]
-#[serde(rename_all = "lowercase", tag = "type")]
+#[serde(rename_all = "lowercase", tag = "type", deny_unknown_fields)]
 #[delegate(DeviceConfig)]
 pub enum Device {
     Dummy(Dummy),
@@ -423,7 +423,7 @@ impl Validate for Device {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Effects {
     #[validate(length(min = 1))]
     pub paths: Vec<String>,
@@ -440,7 +440,7 @@ impl Default for Effects {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct FlatbuffersServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -466,7 +466,7 @@ impl ServerConfig for FlatbuffersServer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ForegroundEffect {
     #[serde(serialize_with = "crate::serde::serialize_color_as_array")]
     pub color: Color,
@@ -491,7 +491,7 @@ impl Default for ForegroundEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Forwarder {
     pub enable: bool,
     pub json: Vec<String>,
@@ -509,7 +509,7 @@ impl Default for Forwarder {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum FramegrabberType {
     Auto,
     AMLogic,
@@ -529,7 +529,7 @@ impl Default for FramegrabberType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Framegrabber {
     #[serde(rename = "type")]
     pub ty: FramegrabberType,
@@ -575,7 +575,7 @@ pub enum WatchedVersionBranch {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct General {
     #[validate(length(min = 4, max = 20))]
     pub name: String,
@@ -594,7 +594,7 @@ impl Default for General {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
 pub enum V4L2Standard {
     NoChange,
     Pal,
@@ -609,7 +609,7 @@ impl Default for V4L2Standard {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct GrabberV4L2 {
     pub device: String,
     pub input: i32,
@@ -674,7 +674,7 @@ impl Default for GrabberV4L2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstanceCapture {
     pub system_enable: bool,
     #[validate(range(min = 100, max = 253))]
@@ -696,7 +696,7 @@ impl Default for InstanceCapture {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct JsonServer {
     #[validate(range(min = 1024))]
     pub port: u16,
@@ -715,7 +715,7 @@ impl ServerConfig for JsonServer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ClassicLedConfig {
     pub top: u32,
     pub bottom: u32,
@@ -779,14 +779,14 @@ impl Default for ClassicLedConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub enum MatrixCabling {
     Snake,
     Parallel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub enum MatrixStart {
     TopLeft,
     TopRight,
@@ -795,7 +795,7 @@ pub enum MatrixStart {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MatrixLedConfig {
     #[validate(range(max = 50))]
     pub ledshoriz: u32,
@@ -817,7 +817,7 @@ impl Default for MatrixLedConfig {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct LedConfig {
     #[validate]
     pub classic: ClassicLedConfig,
@@ -902,7 +902,7 @@ impl<'de> serde::Deserialize<'de> for Leds {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum LoggerLevel {
     Silent,
     Warn,
@@ -911,7 +911,7 @@ pub enum LoggerLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Logger {
     pub level: LoggerLevel,
 }
@@ -925,7 +925,7 @@ impl Default for Logger {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Network {
     pub api_auth: bool,
     #[serde(default)]
@@ -951,7 +951,7 @@ impl Default for Network {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProtoServer {
     pub enable: bool,
     #[validate(range(min = 1024))]
@@ -977,14 +977,14 @@ impl ServerConfig for ProtoServer {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum SmoothingType {
     Linear,
     Decay,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct Smoothing {
     pub enable: bool,
     #[serde(rename = "type")]
@@ -1024,7 +1024,7 @@ impl Default for Smoothing {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct WebConfig {
     #[serde(rename = "document_root")]
     pub document_root: String,
@@ -1259,7 +1259,7 @@ pub enum MetaError {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Meta {
     pub uuid: uuid::Uuid,
     #[serde(default = "chrono::Utc::now")]
@@ -1307,7 +1307,7 @@ fn default_none<T>() -> Option<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct User {
     pub name: String,
     #[serde(
@@ -1390,7 +1390,7 @@ impl TryFrom<db_models::DbUser> for User {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct GlobalConfig {
     pub flatbuffers_server: FlatbuffersServer,
     pub forwarder: Forwarder,
@@ -1440,7 +1440,7 @@ struct GlobalConfigCreator {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstanceConfig {
     #[validate]
     pub instance: Instance,
