@@ -7,6 +7,8 @@ use structopt::StructOpt;
 use tokio::runtime::Builder;
 use tokio::signal;
 
+use hyperion::models::backend::ConfigExt;
+
 #[derive(Debug, StructOpt)]
 struct Opts {
     /// Log verbosity. Overrides logger level in config, but is overridden by HYPERION_LOG
@@ -37,15 +39,16 @@ async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
     let paths = hyperion::global::Paths::new(opts.user_root.clone())?;
 
     // Load configuration
-    let config = {
+    let mut backend: Box<dyn hyperion::models::backend::ConfigBackend> =
         if let Some(config_path) = opts.config_path.as_deref() {
-            hyperion::models::Config::load_file(config_path).await?
+            Box::new(hyperion::models::backend::FileBackend::new(&config_path))
         } else {
             // Connect to database
-            let mut db = hyperion::db::Db::open(&paths.resolve_path(opts.database_path)).await?;
-            hyperion::models::Config::load(&mut db).await?
-        }
-    };
+            let db = hyperion::db::Db::open(&paths.resolve_path(opts.database_path)).await?;
+            Box::new(hyperion::models::backend::DbBackend::new(db))
+        };
+
+    let config = backend.load().await?;
 
     // Dump configuration if this was asked
     if opts.dump_config {
