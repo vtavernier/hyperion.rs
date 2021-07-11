@@ -32,6 +32,9 @@ struct Opts {
     /// %APPDATA%\hyperion.rs (Windows)
     #[structopt(long)]
     user_root: Option<PathBuf>,
+    /// Number of threads to use for the async runtime
+    #[structopt(long)]
+    core_threads: Option<usize>,
 }
 
 async fn run(opts: Opts) -> color_eyre::eyre::Result<()> {
@@ -216,11 +219,10 @@ fn main(opts: Opts) -> color_eyre::eyre::Result<()> {
     install_tracing(&opts)?;
 
     // Create tokio runtime
-    let thd_count = match num_cpus::get() {
-        1 => 2,
-        other => other.min(4),
-    };
-
+    let thd_count = opts
+        .core_threads
+        .and_then(|n| if n > 0 { Some(n) } else { None })
+        .unwrap_or_else(|| num_cpus::get().max(2).min(4));
     let rt = Builder::new_multi_thread()
         .worker_threads(thd_count)
         .enable_all()
